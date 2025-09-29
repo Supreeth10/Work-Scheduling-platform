@@ -1,7 +1,9 @@
 package com.vorto.challenge.model;
 
 import jakarta.persistence.*;
-import org.geolatte.geom.Point;
+import org.locationtech.jts.geom.Point;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -14,8 +16,8 @@ public class Shift {
     @GeneratedValue
     private UUID id;
 
-    @OneToOne
-    @JoinColumn(name = "driver_id", nullable = false, unique = true)
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "driver_id", nullable = false)
     private Driver driver;
 
     @Column(nullable = false, updatable = false)
@@ -24,6 +26,50 @@ public class Shift {
     @Column
     private Instant endTime;
 
-    @Column(nullable = false, columnDefinition = "geography(Point,4326)")
+//    @Column(nullable = false, columnDefinition = "geography(Point,4326)")
+//    private Point startLocation;
+    @JdbcTypeCode(SqlTypes.GEOMETRY)
+    @Column(nullable = false, columnDefinition = "geometry(Point,4326)")
     private Point startLocation;
+
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public Driver getDriver() {
+        return driver;
+    }
+
+    public void setDriver(Driver driver) {
+        this.driver = driver;
+    }
+
+    public Instant getStartTime() {
+        return startTime;
+    }
+
+    public void setStartTime(Instant startTime) {
+        this.startTime = startTime;
+    }
+
+    public Instant getEndTime() {
+        return endTime;
+    }
+
+    public void setEndTime(Instant endTime) {
+        this.endTime = endTime;
+    }
+
+    public Point getStartLocation() {
+        return startLocation;
+    }
+
+    public void setStartLocation(Point startLocation) {
+        this.startLocation = startLocation;
+    }
 }

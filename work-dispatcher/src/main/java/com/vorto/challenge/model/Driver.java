@@ -1,14 +1,15 @@
 package com.vorto.challenge.model;
 
 import jakarta.persistence.*;
-import lombok.Getter;
-import lombok.Setter;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.locationtech.jts.geom.Point;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
-@Getter
-@Setter
 @Entity
 @Table(name = "drivers")
 public class Driver {
@@ -19,13 +20,45 @@ public class Driver {
     @Column(nullable = false, unique = true)
     private String name;
 
-    // Store current location as a PostGIS geography(Point, 4326)
-    @Column(columnDefinition = "geography(Point,4326)")
+    @JdbcTypeCode(SqlTypes.GEOMETRY)
+    @Column(columnDefinition = "geometry(Point,4326)")
     private Point currentLocation;
 
     @Column(nullable = false)
     private boolean onShift = false;
 
-    @OneToOne(mappedBy = "driver", cascade = CascadeType.ALL)
-    private Shift shift;
+    @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, orphanRemoval = false)
+    private List<Shift> shifts = new ArrayList<>();
+
+    public UUID getId() {
+        return id;
+    }
+
+    public void setId(UUID id) {
+        this.id = id;
+    }
+
+    public String getName() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public Point getCurrentLocation() {
+        return currentLocation;
+    }
+
+    public void setCurrentLocation(Point currentLocation) {
+        this.currentLocation = currentLocation;
+    }
+
+    public boolean isOnShift() {
+        return onShift;
+    }
+
+    public void setOnShift(boolean onShift) {
+        this.onShift = onShift;
+    }
 }

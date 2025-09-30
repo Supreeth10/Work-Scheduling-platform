@@ -1,5 +1,6 @@
 package com.vorto.challenge.service;
 
+import com.vorto.challenge.DTO.CompleteStopResult;
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
 import com.vorto.challenge.DTO.RejectOutcome;
 import com.vorto.challenge.model.Driver;
@@ -21,7 +22,7 @@ import java.util.UUID;
 
 @Service
 public class AssignmentServiceImpl implements AssignmentService{
-    private static final int RESERVATION_SECONDS = 60;
+    private static final int RESERVATION_SECONDS = 120;
 
     private final DriverRepository driverRepo;
     private final ShiftRepository shiftRepo;
@@ -56,43 +57,49 @@ public class AssignmentServiceImpl implements AssignmentService{
         if (driver.getCurrentLocation() == null) {
             throw new IllegalStateException("Driver location unknown; cannot assign");
         }
-
-        double lat = driver.getCurrentLocation().getY(); // lat
-        double lng = driver.getCurrentLocation().getX(); // lon
-
-        Load candidate = loadRepo.pickClosestAvailableForReservation(lat, lng, null).orElse(null);
-        if (candidate == null) return null; // 204
-
-        candidate.setAssignedDriver(driver);
-        candidate.setAssignedShift(activeShift);
-        candidate.setStatus(Load.Status.RESERVED);
-        candidate.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
-        loadRepo.save(candidate);
-        return toDto(candidate);
+        // Reserve the closest available from driver's current location
+        return reserveClosestFrom(driver, activeShift, null);
 
     }
 
+
     @Override
     @Transactional
-    public LoadAssignmentResponse completeNextStop(UUID driverId, UUID loadId) {
+    public CompleteStopResult completeNextStop(UUID driverId, UUID loadId) {
         // driver + active shift required
         Driver driver = driverRepo.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
-        shiftRepo.findActiveShift(driverId)
+        Shift activeShift = shiftRepo.findActiveShift(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
 
         Load l = loadRepo.findById(loadId)
                 .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
 
+        // Idempotency: if already completed, return completed + any current open (or try to reserve one now)
         if (l.getStatus() == Load.Status.COMPLETED) {
-            // idempotent: already done
-            return toDto(l);
+            Load open = loadRepo.findOpenByDriverId(
+                    driverId, List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
+            ).orElse(null);
+
+            LoadAssignmentResponse next =
+                    (open != null) ? toDto(open)
+                            : (driver.getCurrentLocation() != null
+                            ? reserveClosestFrom(driver, activeShift, l.getId())
+                            : null);
+
+            return new CompleteStopResult(
+                    toDto(l),
+                    next
+            );
         }
+
+        // Ownership for non-completed loads
         if (l.getAssignedDriver() == null || !driverId.equals(l.getAssignedDriver().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Load not assigned to this driver");
         }
+
         // STATE MACHINE
-        // RESERVED -> IN_PROGRESS and PICKUP ->DROPOFF
+        // RESERVED + PICKUP -> IN_PROGRESS + DROPOFF
         if (l.getStatus() == Load.Status.RESERVED && l.getCurrentStop() == Load.StopKind.PICKUP) {
             // pickup step: ensure reservation not expired
             if (l.getReservationExpiresAt() != null && l.getReservationExpiresAt().isBefore(Instant.now())) {
@@ -108,24 +115,35 @@ public class AssignmentServiceImpl implements AssignmentService{
             driver.setCurrentLocation(l.getPickup());
             driverRepo.save(driver);
             loadRepo.save(l);
-            return toDto(l);
+
+            return new CompleteStopResult(
+                    toDto(l),   // same load, now IN_PROGRESS
+                    null        // we don't search for a new one at pickup
+            );
         }
-        // IN_PROGRESS->COMPLETED and not change to StopKind DROPOFF -> DROPOFF
+
+        // IN_PROGRESS + DROPOFF -> COMPLETED and auto-assign next
         if (l.getStatus() == Load.Status.IN_PROGRESS && l.getCurrentStop() == Load.StopKind.DROPOFF) {
-            // dropoff step -> complete
             l.setStatus(Load.Status.COMPLETED);
             l.setReservationExpiresAt(null);
 
-            // snap driver to dropoff; clear assignment, so it returns to pool logic cleanly
+            // snap driver to dropoff; clear assignment so they’re idle but on-shift
             driver.setCurrentLocation(l.getDropoff());
             l.setAssignedDriver(null);
             l.setAssignedShift(null);
 
             driverRepo.save(driver);
             loadRepo.save(l);
-            return toDto(l);
+
+            // Immediately try to reserve the next closest based on new location
+            LoadAssignmentResponse next = reserveClosestFrom(driver, activeShift, l.getId());
+
+            return new CompleteStopResult(
+                    toDto(l),  // completed
+                    next       // may be null if none available
+            );
         }
-        // any other combo is invalid for this endpoint
+
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Invalid state for completing next stop");
     }
     @Override
@@ -179,6 +197,35 @@ public class AssignmentServiceImpl implements AssignmentService{
     }
 
 
+    // ===================== Helpers =====================
+    /**
+     * Reserve the closest AWAITING_DRIVER load for the given on-shift driver, using their current location.
+     * - Cleans up expired reservations first
+     * - Excludes the given loadId (e.g., the one just completed)
+     * - Returns a DTO for the reserved load, or null if none available
+     */
+    private LoadAssignmentResponse reserveClosestFrom(Driver driver, Shift activeShift, UUID excludeId) {
+        // Clean up pool first
+        loadRepo.releaseExpiredReservations(Instant.now());
+
+        if (driver.getCurrentLocation() == null) {
+            return null; // cannot place the driver on the map
+        }
+
+        final double lat = driver.getCurrentLocation().getY(); // lat
+        final double lng = driver.getCurrentLocation().getX(); // lon
+
+        Load candidate = loadRepo.pickClosestAvailableForReservation(lat, lng, excludeId).orElse(null);
+        if (candidate == null) return null;
+
+        candidate.setAssignedDriver(driver);
+        candidate.setAssignedShift(activeShift);
+        candidate.setStatus(Load.Status.RESERVED);
+        candidate.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
+        loadRepo.save(candidate);
+
+        return toDto(candidate);
+    }
     private LoadAssignmentResponse toDto(Load l) {
         return new LoadAssignmentResponse(
                 l.getId().toString(),

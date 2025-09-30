@@ -1,5 +1,6 @@
 package com.vorto.challenge.controller;
 
+import com.vorto.challenge.DTO.CompleteStopResult;
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
 import com.vorto.challenge.DTO.RejectOutcome;
 import com.vorto.challenge.service.AssignmentService;
@@ -42,7 +43,7 @@ public class AssignmentController {
     @PostMapping("/{driverId}/loads/{loadId}/stops/complete")
     public ResponseEntity<?> completeNextStop(@PathVariable UUID driverId, @PathVariable UUID loadId) {
         try {
-            LoadAssignmentResponse resp = assignmentService.completeNextStop(driverId, loadId);
+            CompleteStopResult resp = assignmentService.completeNextStop (driverId, loadId);
             return ResponseEntity.ok(resp);
         } catch (org.springframework.web.server.ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));

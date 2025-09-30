@@ -1,14 +1,12 @@
 package com.vorto.challenge.controller;
 
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
+import com.vorto.challenge.DTO.RejectOutcome;
 import com.vorto.challenge.service.AssignmentService;
 import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.sql.ast.tree.update.Assignment;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.PathVariable;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
 import java.util.UUID;
@@ -39,4 +37,30 @@ public class AssignmentController {
         }
     }
 
+
+    // POST /api/drivers/{driverId}/loads/{loadId}/stops/complete
+    @PostMapping("/{driverId}/loads/{loadId}/stops/complete")
+    public ResponseEntity<?> completeNextStop(@PathVariable UUID driverId, @PathVariable UUID loadId) {
+        try {
+            LoadAssignmentResponse resp = assignmentService.completeNextStop(driverId, loadId);
+            return ResponseEntity.ok(resp);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    //reject releases the load AND ends the driver's shift. No new assignment.
+    @PostMapping("/{driverId}/loads/{loadId}/reject")
+    public ResponseEntity<?> reject(@PathVariable UUID driverId, @PathVariable UUID loadId) {
+        try {
+            RejectOutcome outcome = assignmentService.rejectReservedLoadAndEndShift(driverId, loadId);
+            return ResponseEntity.ok(outcome);
+        } catch (org.springframework.web.server.ResponseStatusException e) {
+            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
+        } catch (EntityNotFoundException e) {
+            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
+        }
+    }
 }

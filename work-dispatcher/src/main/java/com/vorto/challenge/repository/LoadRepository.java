@@ -1,24 +1,19 @@
 package com.vorto.challenge.repository;
 
 import com.vorto.challenge.model.Load;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
 public interface LoadRepository extends JpaRepository<Load, UUID> {
 
-    // Open work for a driver: RESERVED or IN_PROGRESS
-//    @Query("""
-//      select l from Load l
-//      where l.assignedDriver.id = :driverId
-//        and l.status in (com.vorto.challenge.model.Load.Status.RESERVED,
-//                         com.vorto.challenge.model.Load.Status.IN_PROGRESS)
-//    """)
-//    Optional<Load> findOpenByDriverId(UUID driverId);
+
     @Query("""
   select l from Load l
   where l.assignedDriver.id = :driverId
@@ -61,4 +56,11 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
     JOIN candidate c ON c.id = l.id
     """, nativeQuery = true)
     Optional<Load> pickClosestAvailableForReservation(double lat, double lng, UUID excludeId);
+
+    @EntityGraph(attributePaths = {"assignedDriver"})
+    List<Load> findAll();
+
+    @EntityGraph(attributePaths = {"assignedDriver"})
+    List<Load> findAllByStatus(Load.Status status);
 }
+

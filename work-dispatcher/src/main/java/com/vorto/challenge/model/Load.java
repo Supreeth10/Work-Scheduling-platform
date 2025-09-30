@@ -1,68 +1,81 @@
-//package com.vorto.challenge.model;
-//
-//import jakarta.persistence.*;
-//import lombok.Getter;
-//import lombok.Setter;
-//import org.geolatte.geom.Point;
-//
-//import java.time.Instant;
-//import java.util.UUID;
-//
-//@Getter
-//@Setter
-//@Entity
-//@Table(name = "loads")
-//public class Load {
-//
-//    public enum Status {
-//        AWAITING_DRIVER,
-//        IN_PROGRESS,
-//        COMPLETED
-//    }
-//
-//    public enum CurrentStop {
-//        PICKUP,
-//        DROPOFF
-//    }
-//
-//    @Id
-//    @GeneratedValue
-//    private UUID id;
-//
+package com.vorto.challenge.model;
+
+
+import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.annotations.Type;
+import org.hibernate.type.SqlTypes;
+import org.locationtech.jts.geom.Point;
+
+import java.time.Instant;
+import java.util.UUID;
+
+@Entity
+@Table(name = "loads")
+public class Load {
+
+    public enum Status { AWAITING_DRIVER, RESERVED, IN_PROGRESS, COMPLETED }
+    public enum StopKind { PICKUP, DROPOFF }
+
+    @Id
+    @GeneratedValue
+    private UUID id;
+
+    @JdbcTypeCode(SqlTypes.GEOMETRY)
+    @Column(columnDefinition = "geometry(Point,4326)", nullable = false)
+    private Point pickup;
+
+    @JdbcTypeCode(SqlTypes.GEOMETRY)
+    @Column(columnDefinition = "geometry(Point,4326)", nullable = false)
+    private Point dropoff;
+
+
 //    @Enumerated(EnumType.STRING)
 //    @Column(nullable = false)
-//    private Status status = Status.AWAITING_DRIVER;
-//
+    @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+    @Column(name = "status", columnDefinition = "load_status", nullable = false)
+    private Status status = Status.AWAITING_DRIVER;
+
+
 //    @Enumerated(EnumType.STRING)
-//    private CurrentStop currentStop = CurrentStop.PICKUP;
-//
-//    @Column(nullable = false, columnDefinition = "geography(Point,4326)")
-//    private Point pickup;
-//
-//    @Column(nullable = false, columnDefinition = "geography(Point,4326)")
-//    private Point dropoff;
-//
-//    @ManyToOne
-//    @JoinColumn(name = "driver_id")
-//    private Driver assignedDriver;
-//
-//    @ManyToOne
-//    @JoinColumn(name = "shift_id")
-//    private Shift assignedShift;
-//
-//    @Column(nullable = false, updatable = false)
-//    private Instant createdAt;
-//
-//    @Column
-//    private Instant updatedAt;
-//
-//    @PrePersist
-//    protected void onCreate() {
-//        this.createdAt = Instant.now();
-//    }
-//
-//    @PreUpdate
-//    protected void onUpdate() {
-//        this.updatedAt = Instant.now();
-//    }
-//}
+//    @Column(name = "current_stop", nullable = false)
+      @JdbcTypeCode(SqlTypes.NAMED_ENUM)
+      @Column(name = "current_stop", columnDefinition = "stop_kind", nullable = false)
+    private StopKind currentStop = StopKind.PICKUP;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_driver_id", foreignKey = @ForeignKey(name = "fk_loads_driver"))
+    private Driver assignedDriver;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "assigned_shift_id", foreignKey = @ForeignKey(name = "fk_loads_shift"))
+    private Shift assignedShift;
+
+    @Column(name = "reservation_expires_at")
+    private Instant reservationExpiresAt;
+
+    // ---- getters/setters ----
+    public UUID getId() { return id; }
+    public void setId(UUID id) { this.id = id; }
+
+    public Point getPickup() { return pickup; }
+    public void setPickup(Point pickup) { this.pickup = pickup; }
+
+    public Point getDropoff() { return dropoff; }
+    public void setDropoff(Point dropoff) { this.dropoff = dropoff; }
+
+    public Status getStatus() { return status; }
+    public void setStatus(Status status) { this.status = status; }
+
+    public StopKind getCurrentStop() { return currentStop; }
+    public void setCurrentStop(StopKind currentStop) { this.currentStop = currentStop; }
+
+    public Driver getAssignedDriver() { return assignedDriver; }
+    public void setAssignedDriver(Driver assignedDriver) { this.assignedDriver = assignedDriver; }
+
+    public Shift getAssignedShift() { return assignedShift; }
+    public void setAssignedShift(Shift assignedShift) { this.assignedShift = assignedShift; }
+
+    public Instant getReservationExpiresAt() { return reservationExpiresAt; }
+    public void setReservationExpiresAt(Instant reservationExpiresAt) { this.reservationExpiresAt = reservationExpiresAt; }
+}

@@ -1,15 +1,64 @@
-//package com.vorto.challenge.repository;
-//
-//import com.vorto.challenge.model.Load;
-//import jakarta.persistence.LockModeType;
-//import org.springframework.data.jpa.repository.JpaRepository;
-//import org.springframework.data.jpa.repository.Lock;
-//import org.springframework.data.jpa.repository.Query;
-//import org.springframework.data.repository.query.Param;
-//
-//import java.util.Optional;
-//import java.util.UUID;
-//
-//public interface LoadRepository extends JpaRepository<Load, UUID> {
-//
-//}
+package com.vorto.challenge.repository;
+
+import com.vorto.challenge.model.Load;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+
+import java.time.Instant;
+import java.util.Optional;
+import java.util.UUID;
+
+public interface LoadRepository extends JpaRepository<Load, UUID> {
+
+    // Open work for a driver: RESERVED or IN_PROGRESS
+//    @Query("""
+//      select l from Load l
+//      where l.assignedDriver.id = :driverId
+//        and l.status in (com.vorto.challenge.model.Load.Status.RESERVED,
+//                         com.vorto.challenge.model.Load.Status.IN_PROGRESS)
+//    """)
+//    Optional<Load> findOpenByDriverId(UUID driverId);
+    @Query("""
+  select l from Load l
+  where l.assignedDriver.id = :driverId
+    and l.status in :statuses
+""")
+    Optional<Load> findOpenByDriverId(UUID driverId,
+                                      java.util.Collection<com.vorto.challenge.model.Load.Status> statuses);
+
+    // Inline cleanup for expired reservations
+    @Modifying
+    @Query(value = """
+        UPDATE loads
+        SET status = 'AWAITING_DRIVER',
+            assigned_driver_id = NULL,
+            assigned_shift_id  = NULL,
+            reservation_expires_at = NULL
+        WHERE status = 'RESERVED'
+          AND reservation_expires_at <= :now
+        """, nativeQuery = true)
+    int releaseExpiredReservations(Instant now);
+
+    /**
+     * Select the closest available AWAITING_DRIVER load (excludeId optional),
+     * order by sphere distance (meters), and lock row to avoid races.
+     */
+    @Query(value = """
+    WITH candidate AS (
+      SELECT id
+      FROM loads
+      WHERE status = 'AWAITING_DRIVER'
+        AND (:excludeId IS NULL OR id <> :excludeId)
+      ORDER BY ST_Distance(
+               pickup::geography,
+               ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+      )
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    SELECT l.* FROM loads l
+    JOIN candidate c ON c.id = l.id
+    """, nativeQuery = true)
+    Optional<Load> pickClosestAvailableForReservation(double lat, double lng, UUID excludeId);
+}

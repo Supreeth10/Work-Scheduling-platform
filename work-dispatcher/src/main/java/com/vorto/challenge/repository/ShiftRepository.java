@@ -2,6 +2,7 @@ package com.vorto.challenge.repository;
 
 import com.vorto.challenge.model.Shift;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
 import org.springframework.stereotype.Repository;
 
 import java.util.Optional;
@@ -16,4 +17,9 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
     boolean existsByDriverIdAndEndTimeIsNull(UUID driverId);
     // Retrieve the active shift (if you need it)
     Optional<Shift> findFirstByDriverIdAndEndTimeIsNull(UUID driverId);
+    @Query("""
+      select s from Shift s
+      where s.driver.id = :driverId and s.endTime is null
+    """)
+    Optional<Shift> findActiveShift(UUID driverId);
 }

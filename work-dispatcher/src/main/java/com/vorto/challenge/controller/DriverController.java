@@ -1,9 +1,13 @@
 package com.vorto.challenge.controller;
 
+import com.vorto.challenge.DTO.DriverDto;
+import com.vorto.challenge.DTO.DriverStateResponse;
 import com.vorto.challenge.DTO.LoginRequest;
+import com.vorto.challenge.DriverMapper;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.service.DriverService;
+import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -22,19 +26,21 @@ public class DriverController {
     }
     /**
      * POST /api/drivers/login
-     * - If driver exists: 200 OK (no body)
-     * - If not: create and return 201 Created with driver JSON + Location header
+     * - If driver exists: 200 OK + body (driver JSON)
+     * - If created:       201 Created + body (driver JSON) + Location header
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        Driver created = driverService.loginOrCreate(request);
-        if (created == null) {
-            return ResponseEntity.ok().build(); // 200, empty
+        var outcome = driverService.loginOrCreate(request);
+        var dto = outcome.driver();
+
+        if (outcome.created()) {
+            return ResponseEntity
+                    .created(URI.create("/api/drivers/" + dto.id()))
+                    .body(dto);
+        } else {
+            return ResponseEntity.ok(dto);
         }
-        // Created → 201 + body + Location: /api/drivers/{id}
-        return ResponseEntity
-                .created(URI.create("/api/drivers/" + created.getId()))
-                .body(created);
     }
 
     @GetMapping("/{id}")
@@ -43,4 +49,17 @@ public class DriverController {
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }
+
+    @GetMapping("/{id}/state")
+    public ResponseEntity<DriverStateResponse> getState(@PathVariable UUID id) {
+        return ResponseEntity.ok(driverService.getDriverState(id));
+    }
+
+    // Optional: consistent 404 for state lookups
+    @ExceptionHandler(EntityNotFoundException.class)
+    public ResponseEntity<?> notFound(EntityNotFoundException ex) {
+        return ResponseEntity.status(404).body(new ErrorPayload("NOT_FOUND", ex.getMessage()));
+    }
+
+    private record ErrorPayload(String code, String message) {}
 }

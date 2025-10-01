@@ -3,6 +3,7 @@ package com.vorto.challenge.service;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
+import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
@@ -20,10 +21,12 @@ public class ShiftServiceImpl implements ShiftService{
 
     private final DriverRepository driverRepository;
     private final ShiftRepository shiftRepository;
+    private final LoadRepository loadRepository;
 
-    public ShiftServiceImpl(DriverRepository driverRepository, ShiftRepository shiftRepository) {
+    public ShiftServiceImpl(DriverRepository driverRepository, ShiftRepository shiftRepository, LoadRepository loadRepository) {
         this.driverRepository = driverRepository;
         this.shiftRepository = shiftRepository;
+        this.loadRepository = loadRepository;
     }
     /**
      * Starts a new shift for the driver at (latitude, longitude).
@@ -58,5 +61,32 @@ public class ShiftServiceImpl implements ShiftService{
 
         return saved;
 
+    }
+
+    @Override
+    @Transactional
+    public Shift endShift(UUID driverId) {
+        Driver driver = driverRepository.findById(driverId)
+                .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
+
+        // Must have an active shift
+        Shift active = shiftRepository.findFirstByDriverIdAndEndTimeIsNull(driverId)
+                .orElseThrow(() -> new IllegalStateException("Driver has no active shift."));
+
+        // Block if driver has an active load
+        if (loadRepository.existsActiveByDriverId(driverId)) {
+            throw new IllegalStateException("Cannot end shift: driver has an active load.");
+        }
+
+        // Close shift & flip flag
+        active.setEndTime(Instant.now());
+        driver.setOnShift(false);
+        driver.setCurrentLocation(null);
+
+        // Persist
+        shiftRepository.save(active);
+        driverRepository.save(driver);
+
+        return active;
     }
 }

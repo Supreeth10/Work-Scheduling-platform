@@ -196,6 +196,39 @@ public class AssignmentServiceImpl implements AssignmentService{
         );
     }
 
+    @Override
+    @Transactional
+    public void tryAssignNewlyCreatedLoad(UUID loadId) {
+        // Load must exist and still be unassigned & awaiting driver
+        Load load = loadRepo.findById(loadId)
+                .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
+
+        if (load.getStatus() != Load.Status.AWAITING_DRIVER || load.getPickup() == null) {
+            return; // nothing to do (might have been reserved by some other flow)
+        }
+
+        // Clean pool first (consistent with other flows)
+        loadRepo.releaseExpiredReservations(Instant.now());
+
+        // Find the closest on-shift driver with no open (RESERVED/IN_PROGRESS) load
+        double lat = load.getPickup().getY();
+        double lng = load.getPickup().getX();
+
+        Driver driver = driverRepo.findClosestAvailableDriver(lat, lng).orElse(null);
+        if (driver == null) return;
+
+        // Need the active shift to attach the reservation
+        Shift activeShift = shiftRepo.findActiveShift(driver.getId())
+                .orElse(null);
+        if (activeShift == null) return; // race: driver went off-shift
+
+        // Reserve this specific load for the chosen driver
+        load.setAssignedDriver(driver);
+        load.setAssignedShift(activeShift);
+        load.setStatus(Load.Status.RESERVED);
+        load.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
+        loadRepo.save(load);
+    }
 
     // ===================== Helpers =====================
     /**

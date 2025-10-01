@@ -9,6 +9,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/drivers")
@@ -37,8 +38,8 @@ public class DriverController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> get(@PathVariable("id") java.util.UUID id) {
-        return driverRepository.findById(id)
+    public ResponseEntity<?> get(@PathVariable UUID id) {
+        return driverService.get(id)
                 .<ResponseEntity<?>>map(ResponseEntity::ok)
                 .orElseGet(() -> ResponseEntity.notFound().build());
     }

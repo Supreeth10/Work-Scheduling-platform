@@ -12,6 +12,7 @@ public interface ShiftService {
      * @throws IllegalStateException if driver is already on shift or has a shift row.
      */
     Shift startShift(UUID driverId, double latitude, double longitude);
+    Shift endShift(UUID driverId);
 
 
 }

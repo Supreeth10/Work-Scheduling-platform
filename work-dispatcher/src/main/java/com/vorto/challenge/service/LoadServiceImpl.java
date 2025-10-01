@@ -10,6 +10,8 @@ import org.apache.coyote.BadRequestException;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
@@ -20,9 +22,12 @@ public class LoadServiceImpl implements LoadService {
 
     private final LoadRepository loadRepository;
     private final GeometryFactory geometryFactory;
+    private final AssignmentService assignmentService;
+    private static final Logger log = LoggerFactory.getLogger(LoadServiceImpl.class);
 
-    public LoadServiceImpl(LoadRepository loadRepository) {
+    public LoadServiceImpl(LoadRepository loadRepository,AssignmentService assignmentService) {
         this.loadRepository = loadRepository;
+        this.assignmentService = assignmentService;
         this.geometryFactory = new GeometryFactory();
     }
 
@@ -54,10 +59,20 @@ public class LoadServiceImpl implements LoadService {
         load.setCurrentStop(Load.StopKind.PICKUP);
         // assignedDriver/assignedShift/reservationExpiresAt remain null
 
-        //TO:DO assign new load to driver
-
+        // Persist first
         Load saved = loadRepository.save(load);
-        return toDto(saved);
+
+        // ---- defensive auto-assign: don't fail the request if this throws ----
+        try {
+            assignmentService.tryAssignNewlyCreatedLoad(saved.getId());
+        } catch (Exception e) {
+            log.warn("Auto-assign after create failed for load {}", saved.getId(), e);
+            // swallow so the client still gets 201 + created load
+        }
+
+        // Re-read to reflect any assignment that may have happened
+        Load refreshed = loadRepository.findById(saved.getId()).orElse(saved);
+        return toDto(refreshed);
     }
 
 

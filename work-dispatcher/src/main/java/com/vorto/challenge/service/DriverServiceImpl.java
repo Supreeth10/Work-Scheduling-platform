@@ -1,12 +1,16 @@
 package com.vorto.challenge.service;
 
+import com.vorto.challenge.DTO.DriverDto;
 import com.vorto.challenge.DTO.LoginRequest;
+import com.vorto.challenge.DriverMapper;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.repository.DriverRepository;
 import jakarta.transaction.Transactional;
 import org.springframework.stereotype.Service;
 
 import java.util.Locale;
+import java.util.Optional;
+import java.util.UUID;
 
 @Service
 public class DriverServiceImpl implements DriverService{
@@ -34,4 +38,11 @@ public class DriverServiceImpl implements DriverService{
         if (t.isEmpty()) throw new IllegalArgumentException("username is required");
         return t.toLowerCase(Locale.ROOT);
     }
+
+    @Transactional(Transactional.TxType.SUPPORTS)
+    public Optional<DriverDto> get(UUID id) {
+        return driverRepository.findById(id).map(DriverMapper::toDto);
+    }
+
+
 }

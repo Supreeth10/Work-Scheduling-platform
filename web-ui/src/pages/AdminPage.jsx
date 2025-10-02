@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useMemo } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MapView from '../components/MapView'
 import { createLoad, getLoads } from '../services/api'
@@ -11,12 +11,27 @@ function fmt(n) {
 export default function AdminPage() {
     const navigate = useNavigate()
 
+    // notice banner
+    const [notice, setNotice] = useState('')
+    const [noticeType, setNoticeType] = useState('success') // 'success' | 'info' | 'error'
+    const [noticeTimer, setNoticeTimer] = useState(null)
+
+    // allow temporary '' while typing to avoid NaN -> Leaflet crash
     const [pickup, setPickup] = useState({ lat: 39.7392, lng: -104.9903 }) // Denver
     const [dropoff, setDropoff] = useState({ lat: 33.4484, lng: -112.0740 }) // Phoenix
+
     const [loads, setLoads] = useState([])
-    const [status, setStatus] = useState('') // '', AWAITING_DRIVER, RESERVED, IN_PROGRESS, COMPLETED
+    const [status, setStatus] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+
+    const showNotice = (msg, type = 'success', ms = 4000) => {
+        setNotice(msg)
+        setNoticeType(type)
+        if (noticeTimer) clearTimeout(noticeTimer)
+        const t = setTimeout(() => setNotice(''), ms)
+        setNoticeTimer(t)
+    }
 
     const refresh = async () => {
         try {
@@ -28,59 +43,188 @@ export default function AdminPage() {
 
     useEffect(() => { refresh() }, [status])
 
+    // ---------- validation helpers ----------
+    const isNum = (v) => typeof v === 'number' && Number.isFinite(v)
+    const inLat = (v) => isNum(v) && v >= -90 && v <= 90
+    const inLng = (v) => isNum(v) && v >= -180 && v <= 180
+
+    const pickupLatErr =
+        pickup.lat === '' ? '' : (inLat(pickup.lat) ? '' : 'Latitude must be between -90 and 90')
+    const pickupLngErr =
+        pickup.lng === '' ? '' : (inLng(pickup.lng) ? '' : 'Longitude must be between -180 and 180')
+    const dropoffLatErr =
+        dropoff.lat === '' ? '' : (inLat(dropoff.lat) ? '' : 'Latitude must be between -90 and 90')
+    const dropoffLngErr =
+        dropoff.lng === '' ? '' : (inLng(dropoff.lng) ? '' : 'Longitude must be between -180 and 180')
+
+    const allFilled = isNum(pickup.lat) && isNum(pickup.lng) && isNum(dropoff.lat) && isNum(dropoff.lng)
+    const allValid = inLat(pickup.lat) && inLng(pickup.lng) && inLat(dropoff.lat) && inLng(dropoff.lng)
+    const canSubmit = allFilled && allValid && !loading
+
     const submitLoad = async () => {
         try {
             setLoading(true); setError('')
-            await createLoad({ pickup, dropoff })
+            // convert (already numbers) and send
+            const created = await createLoad({
+                pickup: { lat: Number(pickup.lat), lng: Number(pickup.lng) },
+                dropoff: { lat: Number(dropoff.lat), lng: Number(dropoff.lng) }
+            })
             await refresh()
-        } catch (e) { setError(e.message) } finally { setLoading(false) }
+
+            const shortId = created?.id ? String(created.id).slice(0, 8) : ''
+            showNotice(
+                `New load ${shortId ? `(${shortId}) ` : ''}created. Dispatch will run automatically.`,
+                'success'
+            )
+        } catch (e) {
+            setError(e.message)
+            showNotice('Failed to create load.', 'error', 5000)
+        } finally {
+            setLoading(false)
+        }
     }
 
-    // ✅ Proper SPA logout: clear local state and navigate away
     const doLogout = () => {
+        sessionStorage.removeItem('adminLoggedIn')
+        sessionStorage.removeItem('adminName')
+
         setLoads([])
         setPickup({ lat: 39.7392, lng: -104.9903 })
         setDropoff({ lat: 33.4484, lng: -112.0740 })
         setStatus('')
         setError('')
-        // Send user to the landing route (your App redirects "/" -> "/driver")
-        navigate('/', { replace: true })
+        navigate('/admin/login', { replace: true })
     }
+
+    // small helper to style error text
+    const errStyle = { color: '#c62828', fontSize: 12, marginTop: 4 }
 
     return (
         <div>
             <h2>Admin</h2>
 
+            {notice && (
+                <div
+                    role="status"
+                    style={{
+                        margin: '8px 0 12px',
+                        padding: '10px 12px',
+                        borderRadius: 8,
+                        border: '1px solid',
+                        borderColor:
+                            noticeType === 'success' ? '#b7ebc6' :
+                                noticeType === 'error'   ? '#ffcccc' :
+                                    '#cde1ff',
+                        background:
+                            noticeType === 'success' ? '#f6ffed' :
+                                noticeType === 'error'   ? '#fff5f5' :
+                                    '#f0f7ff',
+                        color: '#222',
+                        fontSize: 14,
+                        textAlign: 'left'
+                    }}
+                >
+                    {notice}
+                </div>
+            )}
+
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16 }}>
                 {/* Left: Create */}
                 <div>
                     <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 12 }}>
-                        <span>Admin: <strong>admin</strong></span>
+                        <span>Admin: <strong>{sessionStorage.getItem('adminName') || 'admin'}</strong></span>
                         <div style={{ marginLeft: 'auto' }}>
                             <button onClick={doLogout}>Logout</button>
                         </div>
                     </div>
 
                     <h3>New Load</h3>
+
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
                         <label>Pickup Lat
-                            <input type="number" value={pickup.lat} onChange={e => setPickup(p => ({ ...p, lat: parseFloat(e.target.value) }))} />
+                            <input
+                                type="number"
+                                name="lat"
+                                value={pickup.lat}
+                                onChange={(e) =>
+                                    setPickup(p => ({ ...p, lat: e.target.value === '' ? '' : Number(e.target.value) }))
+                                }
+                                step="0.000001"
+                            />
+                            {pickupLatErr && <div style={errStyle}>{pickupLatErr}</div>}
                         </label>
+
                         <label>Pickup Lng
-                            <input type="number" value={pickup.lng} onChange={e => setPickup(p => ({ ...p, lng: parseFloat(e.target.value) }))} />
+                            <input
+                                type="number"
+                                name="lng"
+                                value={pickup.lng}
+                                onChange={(e) =>
+                                    setPickup(p => ({ ...p, lng: e.target.value === '' ? '' : Number(e.target.value) }))
+                                }
+                                step="0.000001"
+                            />
+                            {pickupLngErr && <div style={errStyle}>{pickupLngErr}</div>}
                         </label>
+
                         <label>Dropoff Lat
-                            <input type="number" value={dropoff.lat} onChange={e => setDropoff(d => ({ ...d, lat: parseFloat(e.target.value) }))} />
+                            <input
+                                type="number"
+                                name="lat"
+                                value={dropoff.lat}
+                                onChange={(e) =>
+                                    setDropoff(d => ({ ...d, lat: e.target.value === '' ? '' : Number(e.target.value) }))
+                                }
+                                step="0.000001"
+                            />
+                            {dropoffLatErr && <div style={errStyle}>{dropoffLatErr}</div>}
                         </label>
+
                         <label>Dropoff Lng
-                            <input type="number" value={dropoff.lng} onChange={e => setDropoff(d => ({ ...d, lng: parseFloat(e.target.value) }))} />
+                            <input
+                                type="number"
+                                name="lng"
+                                value={dropoff.lng}
+                                onChange={(e) =>
+                                    setDropoff(d => ({ ...d, lng: e.target.value === '' ? '' : Number(e.target.value) }))
+                                }
+                                step="0.000001"
+                            />
+                            {dropoffLngErr && <div style={errStyle}>{dropoffLngErr}</div>}
                         </label>
                     </div>
-                    <button style={{ marginTop: 8 }} onClick={submitLoad} disabled={loading}>Create Load</button>
+
+                    <button
+                        style={{ marginTop: 8, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
+                        onClick={submitLoad}
+                        disabled={!canSubmit}
+                        title={!canSubmit ? 'Enter valid coordinates for all fields' : 'Create Load'}
+                    >
+                        Create Load
+                    </button>
 
                     <h4 style={{ marginTop: 16 }}>Preview</h4>
-                    <MapView pickup={pickup} dropoff={dropoff} />
-                    <p style={{ fontSize: 12, color: '#666' }}>Later we can add “click on map to set points”.</p>
+                    <div style={{ display: 'flex', gap: 12, alignItems: 'center', marginTop: 8 }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 12, height: 12, background: '#34a853', borderRadius: 2, display: 'inline-block' }} />
+              Pickup
+            </span>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6 }}>
+              <span style={{ width: 12, height: 12, background: '#e53935', borderRadius: 2, display: 'inline-block' }} />
+              Dropoff
+            </span>
+                    </div>
+
+                    <MapView
+                        pickup={pickup}
+                        dropoff={dropoff}
+                        onSetPickup={(pt) => setPickup(pt)}
+                        onSetDropoff={(pt) => setDropoff(pt)}
+                    />
+
+                    <p style={{ fontSize: 12, color: '#666' }}>
+                        Click the map to set whichever point is missing, or drag markers to fine-tune. Inputs stay in sync.
+                    </p>
                 </div>
 
                 {/* Right: List */}

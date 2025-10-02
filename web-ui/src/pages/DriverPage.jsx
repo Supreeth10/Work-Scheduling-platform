@@ -254,14 +254,19 @@ export default function DriverPage() {
             const id = getDriverId()
             const loadId = load?.id
             await rejectCurrentLoad(id, loadId)
-            await refreshState(id)
+
+            // Show the message first (it will remain visible after we "log out")
             showNotice('Load rejected and your shift has been ended.', 'info')
+
+            // Now take them back to the login screen
+            logoutToLogin()
         } catch (e) {
             setError(e.message)
         } finally {
             setLoading(false)
         }
     }
+
 
     const doGetAssignment = async () => {
         try {
@@ -280,6 +285,19 @@ export default function DriverPage() {
         } finally {
             setLoading(false)
         }
+    }
+    const logoutToLogin = () => {
+        // stop timers
+        stopPolling()
+        // clear driver/session-ish state so the login form shows
+        setDriver(null)
+        setState(null)
+        setLat('')
+        setLng('')
+        setLastUpdated(null)
+        // keep the notice so the banner remains visible
+        // (we don't clear `notice` here)
+        navigate('/driver', { replace: true })
     }
 
     const assigned = state?.load ?? null

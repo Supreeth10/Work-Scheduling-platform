@@ -1,10 +1,7 @@
 package com.vorto.challenge.controller;
 
-import com.vorto.challenge.DTO.DriverDto;
 import com.vorto.challenge.DTO.DriverStateResponse;
 import com.vorto.challenge.DTO.LoginRequest;
-import com.vorto.challenge.DriverMapper;
-import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.service.DriverService;
 import jakarta.persistence.EntityNotFoundException;
@@ -55,7 +52,6 @@ public class DriverController {
         return ResponseEntity.ok(driverService.getDriverState(id));
     }
 
-    // Optional: consistent 404 for state lookups
     @ExceptionHandler(EntityNotFoundException.class)
     public ResponseEntity<?> notFound(EntityNotFoundException ex) {
         return ResponseEntity.status(404).body(new ErrorPayload("NOT_FOUND", ex.getMessage()));

@@ -1,7 +1,6 @@
 package com.vorto.challenge.service;
 
 import com.vorto.challenge.model.Shift;
-import jakarta.transaction.Transactional;
 
 import java.util.UUID;
 

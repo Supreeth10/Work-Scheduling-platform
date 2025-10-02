@@ -26,19 +26,6 @@ public class WorkDispatcherApplication {
         SpringApplication.run(WorkDispatcherApplication.class, args);
     }
 
-//    @Bean
-//    public CommandLineRunner commandLineRunner(DriverRepository driverRepository) {
-//        return args -> {
-//			GeometryFactory gf = new GeometryFactory(new PrecisionModel(), 4326);
-//            Driver driver = new Driver();
-//            driver.setId(UUID.fromString("4af608e6-336c-4aad-b0e5-7351c6720284"));
-//            driver.setName("Parth");
-//			driver.setOnShift(false);
-//			Point denver = gf.createPoint(new Coordinate(-104.9903, 39.7392));
-//			driver.setCurrentLocation(denver);
-//            driverRepository.save(driver);
-//        };
-//    }
 
     @Bean
     public CommandLineRunner commandLineRunner(LoadRepository loadRepository) {

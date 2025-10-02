@@ -3,7 +3,6 @@ package com.vorto.challenge.model;
 
 import jakarta.persistence.*;
 import org.hibernate.annotations.JdbcTypeCode;
-import org.hibernate.annotations.Type;
 import org.hibernate.type.SqlTypes;
 import org.locationtech.jts.geom.Point;
 
@@ -30,15 +29,13 @@ public class Load {
     private Point dropoff;
 
 
-//    @Enumerated(EnumType.STRING)
-//    @Column(nullable = false)
+
     @JdbcTypeCode(SqlTypes.NAMED_ENUM)
     @Column(name = "status", columnDefinition = "load_status", nullable = false)
     private Status status = Status.AWAITING_DRIVER;
 
 
-//    @Enumerated(EnumType.STRING)
-//    @Column(name = "current_stop", nullable = false)
+
       @JdbcTypeCode(SqlTypes.NAMED_ENUM)
       @Column(name = "current_stop", columnDefinition = "stop_kind", nullable = false)
     private StopKind currentStop = StopKind.PICKUP;

@@ -1,5 +1,5 @@
 -- V4__create_loads_table.sql
--- Loads table using geometry(Point,4326) + soft reservation (RESERVED with 60s TTL handled in code)
+-- Loads table using geometry(Point,4326) + soft reservation (RESERVED with 120s TTL handled in code)
 -- 1) Ensure enum types exist (and include RESERVED)
 DO $$ BEGIN -- load_status: AWAITING_DRIVER, RESERVED, IN_PROGRESS, COMPLETED
 IF NOT EXISTS (

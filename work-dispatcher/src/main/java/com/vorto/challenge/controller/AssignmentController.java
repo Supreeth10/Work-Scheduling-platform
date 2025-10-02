@@ -5,7 +5,6 @@ import com.vorto.challenge.DTO.LoadAssignmentResponse;
 import com.vorto.challenge.DTO.RejectOutcome;
 import com.vorto.challenge.service.AssignmentService;
 import jakarta.persistence.EntityNotFoundException;
-import org.hibernate.sql.ast.tree.update.Assignment;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 

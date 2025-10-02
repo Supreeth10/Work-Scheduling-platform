@@ -1,5 +1,5 @@
 -- V3__create_shifts_table.sql
--- History-friendly shifts (many-to-one Driver -> Shifts), JTS-compatible geometry.
+
 
 CREATE TABLE IF NOT EXISTS shifts (
                                       id             UUID PRIMARY KEY,

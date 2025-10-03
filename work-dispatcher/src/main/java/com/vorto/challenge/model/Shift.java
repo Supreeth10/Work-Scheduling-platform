@@ -26,8 +26,7 @@ public class Shift {
     @Column
     private Instant endTime;
 
-//    @Column(nullable = false, columnDefinition = "geography(Point,4326)")
-//    private Point startLocation;
+
     @JdbcTypeCode(SqlTypes.GEOMETRY)
     @Column(nullable = false, columnDefinition = "geometry(Point,4326)")
     private Point startLocation;

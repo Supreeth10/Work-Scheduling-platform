@@ -17,6 +17,7 @@ services:
       interval: 5s
       timeout: 3s
       retries: 30
+      start_period: 40s
 
   backend:
     build:
@@ -25,11 +26,12 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    restart: on-failure
     environment:
       SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/${POSTGRES_DB:-workdb}
       SPRING_DATASOURCE_USERNAME: ${POSTGRES_USER:-workuser}
       SPRING_DATASOURCE_PASSWORD: ${POSTGRES_PASSWORD:-workpass}
-      # optional: SPRING_PROFILES_ACTIVE: prod
+      SPRING_FLYWAY_CONNECT_RETRIES: 60   # Spring Boot prop → Flyway connectRetries
     ports:
       - "8080:8080"
 

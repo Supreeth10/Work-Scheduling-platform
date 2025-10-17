@@ -71,86 +71,88 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Override
     @Transactional
     public CompleteStopResult completeNextStop(UUID driverId, UUID loadId) {
-        // driver + active shift required
+        // driver must exist and be on an active shift
         Driver driver = driverRepo.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
         Shift activeShift = shiftRepo.findActiveShift(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
-
-        Load l = loadRepo.findById(loadId)
+        // Load must exist
+        Load load = loadRepo.findById(loadId)
                 .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
 
-        // Idempotency: if already completed, return completed + any current open (or try to reserve one now)
-        if (l.getStatus() == Load.Status.COMPLETED) {
-            Load open = loadRepo.findOpenByDriverId(
+        /* Idempotency: if load already completed, return completed load + driver's next assignment (if any)
+            or try to reserve one now (based on driver's current location)*/
+        if (load.getStatus() == Load.Status.COMPLETED) {
+            Load openLoad = loadRepo.findOpenByDriverId(
                     driverId, List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
             ).orElse(null);
 
-            LoadAssignmentResponse next =
-                    (open != null) ? toAssignmentResponse(open)
+            LoadAssignmentResponse nextLoadAssignment =
+                    (openLoad != null) ? toAssignmentResponse(openLoad)
                             : (driver.getCurrentLocation() != null
-                            ? reserveClosestFrom(driver, activeShift, l.getId())
+                            ? reserveClosestFrom(driver, activeShift, load.getId())
                             : null);
 
             return new CompleteStopResult(
-                    toAssignmentResponse(l),
-                    next
+                    toAssignmentResponse(load),
+                    nextLoadAssignment
             );
         }
 
-        // Ownership for non-completed loads
-        if (l.getAssignedDriver() == null || !driverId.equals(l.getAssignedDriver().getId())) {
+        // Ownership check for non-completed loads: requestor must be the assigned driver
+        if (load.getAssignedDriver() == null || !driverId.equals(load.getAssignedDriver().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Load not assigned to this driver");
         }
 
         // STATE MACHINE
         // RESERVED + PICKUP -> IN_PROGRESS + DROPOFF
-        if (l.getStatus() == Load.Status.RESERVED && l.getCurrentStop() == Load.StopKind.PICKUP) {
+        if (load.getStatus() == Load.Status.RESERVED && load.getCurrentStop() == Load.StopKind.PICKUP) {
             // pickup step: ensure reservation not expired
-            if (l.getReservationExpiresAt() != null && l.getReservationExpiresAt().isBefore(Instant.now())) {
+            if (load.getReservationExpiresAt() != null && load.getReservationExpiresAt().isBefore(Instant.now())) {
                 // release and ask client to fetch again
-                releaseReservation(l);
+                releaseReservation(load);
                 throw new ResponseStatusException(HttpStatus.CONFLICT, "Reservation expired. Fetch assignment again.");
             }
-            l.setStatus(Load.Status.IN_PROGRESS);
-            l.setCurrentStop(Load.StopKind.DROPOFF);
-            l.setReservationExpiresAt(null);
+            load.setStatus(Load.Status.IN_PROGRESS);
+            load.setCurrentStop(Load.StopKind.DROPOFF);
+            load.setReservationExpiresAt(null);
 
             // snap driver location to pickup
-            driver.setCurrentLocation(l.getPickup());
+            driver.setCurrentLocation(load.getPickup());
             driverRepo.save(driver);
-            loadRepo.save(l);
+            loadRepo.save(load);
 
             return new CompleteStopResult(
-                    toAssignmentResponse(l),   // same load, now IN_PROGRESS
-                    null        // we don't search for a new one at pickup
+                    toAssignmentResponse(load),   // same load, now IN_PROGRESS
+                    null        // we don't search for a new load at pickup
             );
         }
 
         // IN_PROGRESS + DROPOFF -> COMPLETED and auto-assign next
-        if (l.getStatus() == Load.Status.IN_PROGRESS && l.getCurrentStop() == Load.StopKind.DROPOFF) {
-            l.setStatus(Load.Status.COMPLETED);
-            l.setReservationExpiresAt(null);
+        if (load.getStatus() == Load.Status.IN_PROGRESS && load.getCurrentStop() == Load.StopKind.DROPOFF) {
+            load.setStatus(Load.Status.COMPLETED);
+            load.setReservationExpiresAt(null);
 
-            // snap driver to dropoff; clear assignment so they’re idle but on-shift
-            driver.setCurrentLocation(l.getDropoff());
-            l.setAssignedDriver(null);
-            l.setAssignedShift(null);
+            // snap driver to dropoff; clear assignment, so they’re idle but on-shift
+            driver.setCurrentLocation(load.getDropoff());
+            load.setAssignedDriver(null);
+            load.setAssignedShift(null);
 
             driverRepo.save(driver);
-            loadRepo.save(l);
+            loadRepo.save(load);
 
             // Immediately try to reserve the next closest based on new location
-            LoadAssignmentResponse next = reserveClosestFrom(driver, activeShift, l.getId());
+            LoadAssignmentResponse nextLoadAssignment = reserveClosestFrom(driver, activeShift, load.getId());
 
             return new CompleteStopResult(
-                    toAssignmentResponse(l),  // completed
-                    next       // may be null if none available
+                    toAssignmentResponse(load),  // completed load
+                    nextLoadAssignment       // next assignment (maybe null)
             );
         }
-
+        //Any other combination of status/stop is invalid for "complete next stop"
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Invalid state for completing next stop");
     }
+
     @Override
     @Transactional
     public RejectOutcome rejectReservedLoadAndEndShift(UUID driverId, UUID loadId) {

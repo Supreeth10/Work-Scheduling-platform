@@ -49,11 +49,11 @@ public class AssignmentServiceImpl implements AssignmentService {
         loadRepo.releaseExpiredReservations(Instant.now());
 
         // already has RESERVED/IN_PROGRESS?
-        Load open = loadRepo.findOpenByDriverId(
+        Load openLoad = loadRepo.findOpenByDriverId(
                 driverId,
                 List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
         ).orElse(null);
-        if (open != null) return toDto(open);
+        if (openLoad != null) return toDto(openLoad);
 
         if (driver.getCurrentLocation() == null) {
             throw new IllegalStateException("Driver location unknown; cannot assign");
@@ -243,22 +243,24 @@ public class AssignmentServiceImpl implements AssignmentService {
         loadRepo.releaseExpiredReservations(Instant.now());
 
         if (driver.getCurrentLocation() == null) {
-            return null; // cannot place the driver on the map
+            throw new IllegalStateException("Driver location unknown; cannot assign"); // cannot place the driver on the map
         }
 
-        final double lat = driver.getCurrentLocation().getY(); // lat
-        final double lng = driver.getCurrentLocation().getX(); // lon
+        //extract driver location
+        final double lat = driver.getCurrentLocation().getY(); // latitude
+        final double lng = driver.getCurrentLocation().getX(); // longitude
 
-        Load candidate = loadRepo.pickClosestAvailableForReservation(lat, lng, excludeId).orElse(null);
-        if (candidate == null) return null;
+        // look for closed available load to assign to the driver
+        Load candidateLoad = loadRepo.pickClosestAvailableForReservation(lat, lng, excludeId).orElse(null);
+        if (candidateLoad == null) return null;
 
-        candidate.setAssignedDriver(driver);
-        candidate.setAssignedShift(activeShift);
-        candidate.setStatus(Load.Status.RESERVED);
-        candidate.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
-        loadRepo.save(candidate);
+        candidateLoad.setAssignedDriver(driver);
+        candidateLoad.setAssignedShift(activeShift);
+        candidateLoad.setStatus(Load.Status.RESERVED);
+        candidateLoad.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
+        loadRepo.save(candidateLoad);
 
-        return toDto(candidate);
+        return toDto(candidateLoad);
     }
     private LoadAssignmentResponse toDto(Load l) {
         return new LoadAssignmentResponse(

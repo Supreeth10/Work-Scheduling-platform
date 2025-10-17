@@ -40,27 +40,29 @@ public class AssignmentServiceImpl implements AssignmentService {
     @Override
     @Transactional
     public LoadAssignmentResponse getOrReserveLoad(UUID driverId){
+        //check if driver exists
         Driver driver = driverRepo.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
-        // must be on an active shift
+        // driver must be on an active shift
         Shift activeShift = shiftRepo.findActiveShift(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
 
         // release any expired reservations before selecting
         loadRepo.releaseExpiredReservations(Instant.now());
 
-        // already has RESERVED/IN_PROGRESS?
+        // check if driver already has RESERVED/IN_PROGRESS loads
         Load openLoad = loadRepo.findOpenByDriverId(
                 driverId,
                 List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
         ).orElse(null);
+        // If driver already has an open load return it (idempotent fetch).
         if (openLoad != null) return toAssignmentResponse(openLoad);
 
         if (driver.getCurrentLocation() == null) {
             throw new IllegalStateException("Driver location unknown; cannot assign");
         }
-        // Reserve the closest available from driver's current location
+        // Reserve the closest available load from driver's current location
         return reserveClosestFrom(driver, activeShift, null);
 
     }

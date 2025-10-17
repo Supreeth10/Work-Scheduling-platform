@@ -37,6 +37,11 @@ public class AssignmentServiceImpl implements AssignmentService {
         this.loadRepo = loadRepo;
     }
 
+    /**
+     * Returns the driver's current open assignment if one exists; otherwise reserves
+     * the nearest available load based on the driver's current location.
+     * Requires the driver to be on an active shift. Idempotent fetch if already assigned.
+     */
     @Override
     @Transactional
     public LoadAssignmentResponse getOrReserveLoad(UUID driverId){
@@ -68,6 +73,11 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
 
+    /**
+     * Advances the load state machine (PICKUP -> DROPOFF -> COMPLETE) for this driver.
+     * Enforces ownership, snaps driver location at each stop, and on completion
+     * attempts to reserve the next closest load. Idempotent if the load is already completed.
+     */
     @Override
     @Transactional
     public CompleteStopResult completeNextStop(UUID driverId, UUID loadId) {
@@ -153,35 +163,43 @@ public class AssignmentServiceImpl implements AssignmentService {
         throw new ResponseStatusException(HttpStatus.CONFLICT, "Invalid state for completing next stop");
     }
 
+    /**
+     * Releases a RESERVED load held by this driver back to the pool and ends the driver's shift.
+     * Enforces ownership and state (must be RESERVED). Idempotent fast-path if already released
+     * and the driver is already off shift.
+     */
     @Override
     @Transactional
     public RejectOutcome rejectReservedLoadAndEndShift(UUID driverId, UUID loadId) {
         // Load must exist and be RESERVED by this driver
-        Load l = loadRepo.findById(loadId)
+        Load load = loadRepo.findById(loadId)
                 .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
-        boolean alreadyReleased = l.getStatus() != Load.Status.RESERVED
-                || l.getAssignedDriver() == null
-                || !driverId.equals(l.getAssignedDriver().getId());
+
+        //check if load has already been released or doesn't belong to driver
+        boolean alreadyReleased =  load.getStatus() != Load.Status.RESERVED
+                                || load.getAssignedDriver() == null
+                                || !driverId.equals(load.getAssignedDriver().getId());
 
         // also check driver is already off-shift
         boolean offShift = shiftRepo.findActiveShift(driverId).isEmpty();
 
+        // Idempotency/NO-OP: if the reservation is already released AND the driver is already off shift
         if (alreadyReleased && offShift) {
             return new RejectOutcome(driverId, null, loadId,
                     "NO_OP_ALREADY_REJECTED_AND_SHIFT_ENDED", Instant.now());
         }
 
-        if (l.getAssignedDriver() == null || !driverId.equals(l.getAssignedDriver().getId())) {
+        if (load.getAssignedDriver() == null || !driverId.equals(load.getAssignedDriver().getId())) {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Load not reserved by this driver");
         }
-        if (l.getStatus() != Load.Status.RESERVED) {
+        if (load.getStatus() != Load.Status.RESERVED) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Only RESERVED loads can be rejected");
         }
 
         // Release the reservation back to the pool
-        releaseReservation(l);
+        releaseReservation(load);
 
-        // End the active shift (required by your rule)
+        // End the active shift
         Shift activeShift = shiftRepo.findActiveShift(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
 
@@ -203,6 +221,10 @@ public class AssignmentServiceImpl implements AssignmentService {
         );
     }
 
+    /**
+     * After a load is created: tries to immediately reserve it for the closest eligible
+     * on-shift driver with no open load. No-op if none found or state changed concurrently.
+     */
     @Override
     @Transactional
     public void tryAssignNewlyCreatedLoad(UUID loadId) {
@@ -237,12 +259,12 @@ public class AssignmentServiceImpl implements AssignmentService {
         loadRepo.save(load);
     }
 
+
     // ===================== Helpers =====================
     /**
-     * Reserve the closest AWAITING_DRIVER load for the given on-shift driver, using their current location.
-     * - Cleans up expired reservations first
-     * - Excludes the given loadId (e.g., the one just completed)
-     * - Returns a DTO for the reserved load, or null if none available
+     * Internal: reserves the nearest AWAITING_DRIVER load for the given on-shift driver,
+     * excluding a specific load ID (e.g., the one just completed). Returns the assignment
+     * DTO if reserved, or null if none available.
      */
     private LoadAssignmentResponse reserveClosestFrom(Driver driver, Shift activeShift, UUID excludeId) {
         // Clean up pool first
@@ -269,6 +291,9 @@ public class AssignmentServiceImpl implements AssignmentService {
         return toAssignmentResponse(candidateLoad);
     }
 
+    /**
+     * Internal: returns the load to AWAITING_DRIVER by clearing assignment and reservation metadata.
+     */
     private void releaseReservation(Load l) {
         l.setStatus(Load.Status.AWAITING_DRIVER);
         l.setAssignedDriver(null);

@@ -1,10 +1,11 @@
-package com.vorto.challenge.service;
+package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
+import com.vorto.challenge.service.ShiftService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.locationtech.jts.geom.Point;
@@ -17,7 +18,7 @@ import java.util.UUID;
 
 
 @Service
-public class ShiftServiceImpl implements ShiftService{
+public class ShiftServiceImpl implements ShiftService {
 
     private final DriverRepository driverRepository;
     private final ShiftRepository shiftRepository;

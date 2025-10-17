@@ -1,4 +1,4 @@
-package com.vorto.challenge.service;
+package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.*;
 import com.vorto.challenge.DriverMapper;
@@ -8,22 +8,22 @@ import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
+import com.vorto.challenge.service.DriverService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 
 import java.util.EnumSet;
-import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
 import static com.vorto.challenge.common.TextNormalizer.normalizeUsername;
 
 @Service
-public class DriverServiceImpl implements DriverService{
+public class DriverServiceImpl implements DriverService {
     private final DriverRepository driverRepository;
-    private final ShiftRepository shiftRepository;     // <-- inject
+    private final ShiftRepository shiftRepository;
     private final LoadRepository loadRepository;
 
     public DriverServiceImpl(DriverRepository driverRepository, ShiftRepository shiftRepository, LoadRepository loadRepository) {

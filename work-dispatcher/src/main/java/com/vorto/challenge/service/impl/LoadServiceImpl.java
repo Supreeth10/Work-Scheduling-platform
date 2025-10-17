@@ -1,10 +1,12 @@
-package com.vorto.challenge.service;
+package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.DTO.CreateLoadRequest;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
+import com.vorto.challenge.service.AssignmentService;
+import com.vorto.challenge.service.LoadService;
 import jakarta.transaction.Transactional;
 import org.apache.coyote.BadRequestException;
 import org.locationtech.jts.geom.Coordinate;

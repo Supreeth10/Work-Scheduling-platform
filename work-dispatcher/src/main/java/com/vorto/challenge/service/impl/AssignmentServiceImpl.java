@@ -1,4 +1,4 @@
-package com.vorto.challenge.service;
+package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.CompleteStopResult;
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
@@ -9,6 +9,7 @@ import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
+import com.vorto.challenge.service.AssignmentService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.transaction.Transactional;
 import org.springframework.http.HttpStatus;
@@ -21,7 +22,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Service
-public class AssignmentServiceImpl implements AssignmentService{
+public class AssignmentServiceImpl implements AssignmentService {
     private static final int RESERVATION_SECONDS = 120;
 
     private final DriverRepository driverRepo;

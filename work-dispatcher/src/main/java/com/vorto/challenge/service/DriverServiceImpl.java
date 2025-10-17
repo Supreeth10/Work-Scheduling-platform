@@ -18,6 +18,8 @@ import java.util.Locale;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.vorto.challenge.common.TextNormalizer.normalizeUsername;
+
 @Service
 public class DriverServiceImpl implements DriverService{
     private final DriverRepository driverRepository;
@@ -32,7 +34,8 @@ public class DriverServiceImpl implements DriverService{
     @Override
     @Transactional
     public LoginOutcome loginOrCreate(LoginRequest request) {
-        String normalized = normalize(request.username());
+        String normalized = normalizeUsername(request.username());
+
         // If exists → return it with created=false
         Optional<Driver> existing = driverRepository.findByNameIgnoreCase(normalized);
         if (existing.isPresent()) {
@@ -95,11 +98,7 @@ public class DriverServiceImpl implements DriverService{
     }
 
     // ---- helpers ---------------------------------------------------
-    private String normalize(String u) {
-        String t = (u == null) ? "" : u.trim();
-        if (t.isEmpty()) throw new IllegalArgumentException("username is required");
-        return t.toLowerCase(Locale.ROOT);
-    }
+
 
     private LoadSummaryDto toLoadSummary(Load l) {
         // pickup/dropoff geometry → DTO LatLng

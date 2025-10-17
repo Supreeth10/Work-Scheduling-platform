@@ -1,5 +1,6 @@
 package com.vorto.challenge.controller;
 
+import com.vorto.challenge.DTO.DriverEndShiftDto;
 import com.vorto.challenge.DTO.StartShiftRequest;
 import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.service.ShiftService;
@@ -48,13 +49,9 @@ public class ShiftController {
     @PostMapping("/{driverId}/shift/end")
     public ResponseEntity<?> endShift(@PathVariable UUID driverId) {
         try {
-            Shift ended = shiftService.endShift(driverId);
-            return ResponseEntity.ok(Map.of(
-                    "shiftId", ended.getId(),
-                    "driverId", driverId,
-                    "endTime", ended.getEndTime()
-            ));
-        } catch (jakarta.persistence.EntityNotFoundException e) {
+            DriverEndShiftDto endedShift = shiftService.endShift(driverId);
+            return ResponseEntity.ok(endedShift);
+        } catch (EntityNotFoundException e) {
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
             // Either no active shift, or has active load

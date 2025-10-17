@@ -1,5 +1,6 @@
 package com.vorto.challenge.service.impl;
 
+import com.vorto.challenge.DTO.DriverEndShiftDto;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
@@ -64,12 +65,12 @@ public class ShiftServiceImpl implements ShiftService {
 
     @Override
     @Transactional
-    public Shift endShift(UUID driverId) {
+    public DriverEndShiftDto endShift(UUID driverId) {
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // Must have an active shift
-        Shift active = shiftRepository.findFirstByDriverIdAndEndTimeIsNull(driverId)
+        Shift activeShift = shiftRepository.findFirstByDriverIdAndEndTimeIsNull(driverId)
                 .orElseThrow(() -> new IllegalStateException("Driver has no active shift."));
 
         // Block if driver has an active load
@@ -78,14 +79,14 @@ public class ShiftServiceImpl implements ShiftService {
         }
 
         // Close shift & flip flag
-        active.setEndTime(Instant.now());
+        activeShift.setEndTime(Instant.now());
         driver.setOnShift(false);
         driver.setCurrentLocation(null);
 
         // Persist
-        shiftRepository.save(active);
+        shiftRepository.save(activeShift);
         driverRepository.save(driver);
 
-        return active;
+        return new DriverEndShiftDto(activeShift.getId(),driver.getId(),activeShift.getEndTime());
     }
 }

@@ -57,10 +57,8 @@ public class ShiftServiceImpl implements ShiftService {
         driver.setOnShift(true);
         driver.setCurrentLocation(startPoint);
         // Persist in a single transaction
-        Shift saved = shiftRepository.save(shift);
         driverRepository.save(driver);
-
-        return saved;
+        return shiftRepository.save(shift);
 
     }
 

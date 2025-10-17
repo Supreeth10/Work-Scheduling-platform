@@ -21,6 +21,8 @@ import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
 
+import static com.vorto.challenge.common.LoadMappers.toAssignmentResponse;
+
 @Service
 public class AssignmentServiceImpl implements AssignmentService {
     private static final int RESERVATION_SECONDS = 120;
@@ -53,7 +55,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 driverId,
                 List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
         ).orElse(null);
-        if (openLoad != null) return toDto(openLoad);
+        if (openLoad != null) return toAssignmentResponse(openLoad);
 
         if (driver.getCurrentLocation() == null) {
             throw new IllegalStateException("Driver location unknown; cannot assign");
@@ -83,13 +85,13 @@ public class AssignmentServiceImpl implements AssignmentService {
             ).orElse(null);
 
             LoadAssignmentResponse next =
-                    (open != null) ? toDto(open)
+                    (open != null) ? toAssignmentResponse(open)
                             : (driver.getCurrentLocation() != null
                             ? reserveClosestFrom(driver, activeShift, l.getId())
                             : null);
 
             return new CompleteStopResult(
-                    toDto(l),
+                    toAssignmentResponse(l),
                     next
             );
         }
@@ -118,7 +120,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             loadRepo.save(l);
 
             return new CompleteStopResult(
-                    toDto(l),   // same load, now IN_PROGRESS
+                    toAssignmentResponse(l),   // same load, now IN_PROGRESS
                     null        // we don't search for a new one at pickup
             );
         }
@@ -140,7 +142,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             LoadAssignmentResponse next = reserveClosestFrom(driver, activeShift, l.getId());
 
             return new CompleteStopResult(
-                    toDto(l),  // completed
+                    toAssignmentResponse(l),  // completed
                     next       // may be null if none available
             );
         }
@@ -260,19 +262,9 @@ public class AssignmentServiceImpl implements AssignmentService {
         candidateLoad.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
         loadRepo.save(candidateLoad);
 
-        return toDto(candidateLoad);
+        return toAssignmentResponse(candidateLoad);
     }
-    private LoadAssignmentResponse toDto(Load l) {
-        return new LoadAssignmentResponse(
-                l.getId().toString(),
-                l.getPickup().getY(),  // lat
-                l.getPickup().getX(),  // lon
-                l.getDropoff().getY(),
-                l.getDropoff().getX(),
-                l.getStatus().name(),
-                l.getCurrentStop().name()
-        );
-    }
+
     private void releaseReservation(Load l) {
         l.setStatus(Load.Status.AWAITING_DRIVER);
         l.setAssignedDriver(null);

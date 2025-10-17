@@ -1,9 +1,11 @@
 package com.vorto.challenge.controller;
 
+import com.vorto.challenge.DTO.DriverDto;
 import com.vorto.challenge.DTO.DriverStateResponse;
 import com.vorto.challenge.DTO.LoginRequest;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.service.DriverService;
+import com.vorto.challenge.service.DriverService.LoginOutcome;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
@@ -28,8 +30,8 @@ public class DriverController {
      */
     @PostMapping("/login")
     public ResponseEntity<?> login(@Valid @RequestBody LoginRequest request) {
-        var outcome = driverService.loginOrCreate(request);
-        var dto = outcome.driver();
+        LoginOutcome outcome = driverService.loginOrCreate(request);
+        DriverDto dto = outcome.driver();
 
         if (outcome.created()) {
             return ResponseEntity

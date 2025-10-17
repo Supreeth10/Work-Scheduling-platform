@@ -1,6 +1,7 @@
 package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.DriverEndShiftDto;
+import com.vorto.challenge.DTO.DriverStartShiftDto;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
@@ -31,15 +32,12 @@ public class ShiftServiceImpl implements ShiftService {
         this.loadRepository = loadRepository;
     }
     /**
-     * Starts a new shift for the driver at (latitude, longitude).
-     * Rules:
-     *  - Driver must exist.
-     *  - No active shift should exist (endTime IS NULL).
-     *  - Creates a NEW Shift row (history kept), sets driver.onShift = true and updates currentLocation.
+     * Starts a new shift for the given driver at the provided coordinates.
+     * Enforces "one active shift per driver" and updates the driver's state.
      */
     @Override
     @Transactional
-    public Shift startShift(UUID driverId, double latitude, double longitude) {
+    public DriverStartShiftDto startShift(UUID driverId, double latitude, double longitude) {
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
@@ -49,20 +47,28 @@ public class ShiftServiceImpl implements ShiftService {
         }
         Point startPoint = point(latitude, longitude);
 
-        // Create new Shift
-        Shift shift = new Shift();
-        shift.setDriver(driver);
-        shift.setStartLocation(startPoint);
-        shift.setStartTime(Instant.now());
         // Update driver state
         driver.setOnShift(true);
         driver.setCurrentLocation(startPoint);
+
+        // Create new Shift
+        Shift newShift = new Shift();
+        newShift.setDriver(driver);
+        newShift.setStartLocation(startPoint);
+        newShift.setStartTime(Instant.now());
+
         // Persist in a single transaction
         driverRepository.save(driver);
-        return shiftRepository.save(shift);
+        shiftRepository.save(newShift);
+
+        return new DriverStartShiftDto(newShift.getId(),driver.getId(),newShift.getStartTime());
 
     }
 
+    /**
+     * Ends the driver's current active shift.
+     * Disallows ending a shift if the driver still has an active (RESERVED/IN_PROGRESS) load.
+     */
     @Override
     @Transactional
     public DriverEndShiftDto endShift(UUID driverId) {

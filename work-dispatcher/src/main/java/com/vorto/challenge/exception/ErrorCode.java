@@ -1,0 +1,13 @@
+package com.vorto.challenge.exception;
+
+public enum ErrorCode {
+    VALIDATION_ERROR,
+    DRIVER_NOT_FOUND,
+    LOAD_NOT_FOUND,
+    SHIFT_NOT_ACTIVE,
+    SHIFT_ALREADY_ACTIVE,
+    LOAD_STATE_CONFLICT,
+    DATA_INTEGRITY_VIOLATION,
+    ACCESS_DENIED,
+    INTERNAL_ERROR
+}

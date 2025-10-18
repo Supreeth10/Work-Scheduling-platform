@@ -19,7 +19,7 @@ public final class JtsGeo {
     }
     public static LocationDto toLatLng(Point p) {
         // JTS Point: X = lng, Y = lat
-        return new LocationDto(p.getX(), p.getY());
+        return new LocationDto(p.getY(),p.getX());
     }
 
 

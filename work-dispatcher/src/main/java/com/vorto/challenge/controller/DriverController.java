@@ -2,9 +2,9 @@ package com.vorto.challenge.controller;
 
 import com.vorto.challenge.DTO.DriverDto;
 import com.vorto.challenge.DTO.DriverStateResponse;
+import com.vorto.challenge.DTO.LoginOutcome;
 import com.vorto.challenge.DTO.LoginRequest;
 import com.vorto.challenge.service.DriverService;
-import com.vorto.challenge.service.DriverService.LoginOutcome;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;

@@ -4,6 +4,7 @@ package com.vorto.challenge.service;
 
 import com.vorto.challenge.DTO.DriverDto;
 import com.vorto.challenge.DTO.DriverStateResponse;
+import com.vorto.challenge.DTO.LoginOutcome;
 import com.vorto.challenge.DTO.LoginRequest;
 
 
@@ -18,6 +19,5 @@ public interface DriverService {
     LoginOutcome loginOrCreate(LoginRequest request);
     Optional<DriverDto> get(UUID id);
     DriverStateResponse getDriverState(UUID driverId);
-    // Simple outcome wrapper
-    record LoginOutcome(boolean created, DriverDto driver) {}
+
 }

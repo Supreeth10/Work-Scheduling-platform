@@ -11,7 +11,7 @@ import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import com.vorto.challenge.service.DriverService;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.stereotype.Service;
 
 
@@ -51,13 +51,13 @@ public class DriverServiceImpl implements DriverService {
     }
 
 
-    @Transactional(Transactional.TxType.SUPPORTS)
+    @Transactional(readOnly = true)
     public Optional<DriverDto> get(UUID id) {
         return driverRepository.findById(id).map(DriverMapper::toDto);
     }
 
     @Override
-    @Transactional(Transactional.TxType.SUPPORTS)
+    @Transactional(readOnly = true)
     public DriverStateResponse getDriverState(UUID driverId) {
         Driver driver = driverRepository.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));

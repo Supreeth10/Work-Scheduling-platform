@@ -9,7 +9,7 @@ import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import com.vorto.challenge.service.ShiftService;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 

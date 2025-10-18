@@ -7,7 +7,7 @@ import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.service.AssignmentService;
 import com.vorto.challenge.service.LoadService;
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import org.apache.coyote.BadRequestException;
 import org.locationtech.jts.geom.Point;
 import org.slf4j.Logger;
@@ -33,6 +33,7 @@ public class LoadServiceImpl implements LoadService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<LoadSummaryDto> getAll(Load.Status statusOpt){
         List<Load> loads = (statusOpt == null)
                 ? loadRepository.findAll()
@@ -41,6 +42,8 @@ public class LoadServiceImpl implements LoadService {
         return loads.stream().map(LoadMappers::toLoadSummaryDto).toList();
     }
 
+    @Override
+    @Transactional(readOnly = true)
     public LoadSummaryDto getOne(UUID id) {
         Load load = loadRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Load %s not found".formatted(id)));

@@ -18,6 +18,7 @@ import java.util.EnumSet;
 import java.util.Optional;
 import java.util.UUID;
 
+import static com.vorto.challenge.common.JtsGeo.toLatLng;
 import static com.vorto.challenge.common.TextNormalizer.normalizeUsername;
 
 @Service
@@ -102,8 +103,8 @@ public class DriverServiceImpl implements DriverService {
 
     private LoadSummaryDto toLoadSummary(Load l) {
         // pickup/dropoff geometry → DTO LatLng
-        LoadSummaryDto.LatLng pickup = toLatLng(l.getPickup());
-        LoadSummaryDto.LatLng dropoff = toLatLng(l.getDropoff());
+        LocationDto pickup = toLatLng(l.getPickup());
+        LocationDto dropoff = toLatLng(l.getDropoff());
 
         // currentStop/status as Strings for your UI
         String status = l.getStatus().name();           // AWAITING_DRIVER / RESERVED / IN_PROGRESS / COMPLETED
@@ -128,11 +129,11 @@ public class DriverServiceImpl implements DriverService {
         );
     }
 
-    private LoadSummaryDto.LatLng toLatLng(Point p) {
-        if (p == null) return null;
-        // JTS: (x,y)=(lon,lat)
-        return new LoadSummaryDto.LatLng(p.getY(), p.getX());
-    }
+//    private LoadSummaryDto.LatLng toLatLng(Point p) {
+//        if (p == null) return null;
+//        // JTS: (x,y)=(lon,lat)
+//        return new LoadSummaryDto.LatLng(p.getY(), p.getX());
+//    }
     private Driver newDriver(String name) {
         Driver d = new Driver();
         d.setName(name);

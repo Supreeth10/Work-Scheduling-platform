@@ -2,6 +2,7 @@ package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.DTO.CreateLoadRequest;
+import com.vorto.challenge.DTO.LocationDto;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
@@ -18,6 +19,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.vorto.challenge.common.JtsGeo.point;
+import static com.vorto.challenge.common.JtsGeo.toLatLng;
 
 @Service
 public class LoadServiceImpl implements LoadService {
@@ -92,10 +94,7 @@ public class LoadServiceImpl implements LoadService {
         );
     }
 
-    private static LoadSummaryDto.LatLng toLatLng(Point p) {
-        // JTS Point: X = lng, Y = lat
-        return new LoadSummaryDto.LatLng(p.getY(), p.getX());
-    }
+
 
     private void validate(CreateLoadRequest req) throws BadRequestException {
         if (req == null || req.pickup() == null || req.dropoff() == null) {

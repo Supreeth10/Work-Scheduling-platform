@@ -1,6 +1,7 @@
 package com.vorto.challenge.common;
 
 
+import com.vorto.challenge.DTO.LocationDto;
 import org.locationtech.jts.geom.Coordinate;
 import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
@@ -16,4 +17,10 @@ public final class JtsGeo {
         p.setSRID(4326);
         return p;
     }
+    public static LocationDto toLatLng(Point p) {
+        // JTS Point: X = lng, Y = lat
+        return new LocationDto(p.getX(), p.getY());
+    }
+
+
 }

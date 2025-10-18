@@ -40,11 +40,13 @@ public class LoadServiceImpl implements LoadService {
 
         return loads.stream().map(LoadMappers::toLoadSummaryDto).toList();
     }
+
     public LoadSummaryDto getOne(UUID id) {
         Load load = loadRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Load %s not found".formatted(id)));
         return toLoadSummaryDto(load);
     }
+
     @Override
     @Transactional
     public LoadSummaryDto create(CreateLoadRequest createLoadRequest) throws BadRequestException {
@@ -77,8 +79,6 @@ public class LoadServiceImpl implements LoadService {
     }
 
 
-
-
     private void validate(CreateLoadRequest req) throws BadRequestException {
         if (req == null || req.pickup() == null || req.dropoff() == null) {
             throw new BadRequestException("pickup and dropoff are required");
@@ -87,6 +87,7 @@ public class LoadServiceImpl implements LoadService {
         checkLatLng("dropoff", req.dropoff().lat(), req.dropoff().lng());
     }
 
+    // TO:DO Use Spring validators instead
     private void checkLatLng(String label, Double lat, Double lng) throws BadRequestException {
         if (lat == null || lng == null) throw new BadRequestException(label + " lat/lng are required");
         if (lat < -90 || lat > 90)   throw new BadRequestException(label + ".lat must be between -90 and 90");

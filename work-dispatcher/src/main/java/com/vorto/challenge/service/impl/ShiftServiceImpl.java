@@ -42,9 +42,11 @@ public class ShiftServiceImpl implements ShiftService {
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // Guard against duplicates: either an existing shift row or onShift flag already true
-        if (shiftRepository.existsByDriverIdAndEndTimeIsNull(driverId) || driver.isOnShift()) {
+        boolean hasActiveShift = shiftRepository.existsByDriverIdAndEndTimeIsNull(driverId) || driver.isOnShift();
+        if (hasActiveShift) {
             throw new IllegalStateException("Driver is already on shift.");
         }
+
         Point startPoint = point(latitude, longitude);
 
         // Update driver state

@@ -73,6 +73,10 @@ public class GlobalExceptionHandler {
         return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
                 ex.getMessage(), req, null);
     }
+    @ExceptionHandler(IllegalStateException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalState(IllegalStateException ex, HttpServletRequest req) {
+        return build(HttpStatus.CONFLICT, ErrorCode.SHIFT_ALREADY_ACTIVE, ex.getMessage(), req, null);
+    }
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex, HttpServletRequest req) {

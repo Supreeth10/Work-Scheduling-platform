@@ -34,20 +34,26 @@ public final class LoadMappers {
         );
     }
 
+
     public static LoadSummaryDto toLoadSummaryDto(Load l) {
-        LoadSummaryDto.DriverLite driverLite = null;
-        Driver d = l.getAssignedDriver();
-        if (d != null) {
-            driverLite = new LoadSummaryDto.DriverLite(d.getId(), d.getName());
-        }
-        return new LoadSummaryDto(
-                l.getId(),
-                l.getStatus().name(),
-                l.getCurrentStop().name(),
-                toLatLng(l.getPickup()),
-                toLatLng(l.getDropoff()),
-                driverLite
-        );
-    }
+    if (l == null) return null;
+
+    Driver d = l.getAssignedDriver();
+    LoadSummaryDto.DriverLite driverLite = (d != null)
+            ? new LoadSummaryDto.DriverLite(d.getId(), d.getName())
+            : null;
+
+    String status = (l.getStatus() != null) ? l.getStatus().name() : null;
+    String currentStop = (l.getCurrentStop() != null) ? l.getCurrentStop().name() : null;
+
+    return new LoadSummaryDto(
+            l.getId(),
+            status,
+            currentStop,
+            toLatLng(l.getPickup()),
+            toLatLng(l.getDropoff()),
+            driverLite
+    );
+}
 
 }

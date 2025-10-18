@@ -69,7 +69,7 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
           SELECT 1
           FROM loads l
            WHERE l.assigned_driver_id = :driverId
-            AND l.status <> 'COMPLETED'
+            AND l.status = 'IN_PROGRESS'
         )
         """, nativeQuery = true)
     boolean existsActiveByDriverId(@Param("driverId") UUID driverId);

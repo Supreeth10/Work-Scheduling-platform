@@ -67,6 +67,13 @@ public class GlobalExceptionHandler {
                 "Data integrity violation", req, Map.of("rootCause", rootCauseMessage(ex)));
     }
 
+    @ExceptionHandler(IllegalArgumentException.class)
+    public ResponseEntity<ErrorResponse> handleIllegalArgument(IllegalArgumentException ex,
+                                                               HttpServletRequest req) {
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR,
+                ex.getMessage(), req, null);
+    }
+
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex, HttpServletRequest req) {
         return build(HttpStatus.valueOf(ex.getStatusCode().value()),

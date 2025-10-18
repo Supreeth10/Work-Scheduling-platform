@@ -8,11 +8,13 @@ import com.vorto.challenge.service.DriverService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
 import java.util.UUID;
 
+@Validated
 @RestController
 @RequestMapping("/api/drivers")
 public class DriverController {

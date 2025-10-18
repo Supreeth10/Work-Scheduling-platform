@@ -1,8 +1,12 @@
 package com.vorto.challenge.common;
 
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
+import com.vorto.challenge.DTO.LoadSummaryDto;
+import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
 import org.locationtech.jts.geom.Point;
+
+import static com.vorto.challenge.common.JtsGeo.toLatLng;
 
 public final class LoadMappers {
     private LoadMappers() {}
@@ -30,5 +34,20 @@ public final class LoadMappers {
         );
     }
 
+    public static LoadSummaryDto toLoadSummaryDto(Load l) {
+        LoadSummaryDto.DriverLite driverLite = null;
+        Driver d = l.getAssignedDriver();
+        if (d != null) {
+            driverLite = new LoadSummaryDto.DriverLite(d.getId(), d.getName());
+        }
+        return new LoadSummaryDto(
+                l.getId(),
+                l.getStatus().name(),
+                l.getCurrentStop().name(),
+                toLatLng(l.getPickup()),
+                toLatLng(l.getDropoff()),
+                driverLite
+        );
+    }
 
 }

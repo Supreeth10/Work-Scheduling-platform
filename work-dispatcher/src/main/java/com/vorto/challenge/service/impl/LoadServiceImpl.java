@@ -2,8 +2,7 @@ package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.DTO.CreateLoadRequest;
-import com.vorto.challenge.DTO.LocationDto;
-import com.vorto.challenge.model.Driver;
+import com.vorto.challenge.common.LoadMappers;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.service.AssignmentService;
@@ -19,7 +18,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.vorto.challenge.common.JtsGeo.point;
-import static com.vorto.challenge.common.JtsGeo.toLatLng;
+import static com.vorto.challenge.common.LoadMappers.toLoadSummaryDto;
 
 @Service
 public class LoadServiceImpl implements LoadService {
@@ -39,12 +38,12 @@ public class LoadServiceImpl implements LoadService {
                 ? loadRepository.findAll()
                 : loadRepository.findAllByStatus(statusOpt);
 
-        return loads.stream().map(this::toDto).toList();
+        return loads.stream().map(LoadMappers::toLoadSummaryDto).toList();
     }
     public LoadSummaryDto getOne(UUID id) {
         Load load = loadRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Load %s not found".formatted(id)));
-        return toDto(load);
+        return toLoadSummaryDto(load);
     }
     @Override
     @Transactional
@@ -74,25 +73,9 @@ public class LoadServiceImpl implements LoadService {
 
         // Re-read to reflect any assignment that may have happened
         Load refreshed = loadRepository.findById(saved.getId()).orElse(saved);
-        return toDto(refreshed);
+        return toLoadSummaryDto(refreshed);
     }
 
-
-    private LoadSummaryDto toDto(Load l) {
-        LoadSummaryDto.DriverLite driverLite = null;
-        Driver d = l.getAssignedDriver();
-        if (d != null) {
-            driverLite = new LoadSummaryDto.DriverLite(d.getId(), d.getName());
-        }
-        return new LoadSummaryDto(
-                l.getId(),
-                l.getStatus().name(),
-                l.getCurrentStop().name(),
-                toLatLng(l.getPickup()),
-                toLatLng(l.getDropoff()),
-                driverLite
-        );
-    }
 
 
 

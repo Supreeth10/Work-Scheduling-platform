@@ -9,8 +9,6 @@ import com.vorto.challenge.service.AssignmentService;
 import com.vorto.challenge.service.LoadService;
 import jakarta.transaction.Transactional;
 import org.apache.coyote.BadRequestException;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,18 +17,18 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+import static com.vorto.challenge.common.JtsGeo.point;
+
 @Service
 public class LoadServiceImpl implements LoadService {
 
     private final LoadRepository loadRepository;
-    private final GeometryFactory geometryFactory;
     private final AssignmentService assignmentService;
     private static final Logger log = LoggerFactory.getLogger(LoadServiceImpl.class);
 
     public LoadServiceImpl(LoadRepository loadRepository,AssignmentService assignmentService) {
         this.loadRepository = loadRepository;
         this.assignmentService = assignmentService;
-        this.geometryFactory = new GeometryFactory();
     }
 
     @Override
@@ -48,11 +46,11 @@ public class LoadServiceImpl implements LoadService {
     }
     @Override
     @Transactional
-    public LoadSummaryDto create(CreateLoadRequest req) throws BadRequestException {
-        validate(req);
+    public LoadSummaryDto create(CreateLoadRequest createLoadRequest) throws BadRequestException {
+        validate(createLoadRequest);
 
-        Point pickup = point(req.pickup().lat(), req.pickup().lng());
-        Point dropoff = point(req.dropoff().lat(), req.dropoff().lng());
+        Point pickup = point(createLoadRequest.pickup().lat(), createLoadRequest.pickup().lng());
+        Point dropoff = point(createLoadRequest.dropoff().lat(), createLoadRequest.dropoff().lng());
 
         Load load = new Load();
         load.setPickup(pickup);
@@ -64,7 +62,7 @@ public class LoadServiceImpl implements LoadService {
         // Persist first
         Load saved = loadRepository.save(load);
 
-        // ---- defensive auto-assign: don't fail the request if this throws ----
+        // ---- defensive auto-assign: doesn't fail the request if this throws ----
         try {
             assignmentService.tryAssignNewlyCreatedLoad(saved.getId());
         } catch (Exception e) {
@@ -113,12 +111,6 @@ public class LoadServiceImpl implements LoadService {
         if (lng < -180 || lng > 180) throw new BadRequestException(label + ".lng must be between -180 and 180");
     }
 
-    private Point point(double lat, double lng) {
-        // JTS uses (x=lng, y=lat)
-        Point p = geometryFactory.createPoint(new Coordinate(lng, lat));
-        p.setSRID(4326);
-        return p;
-    }
 
     public static class NotFoundException extends RuntimeException {
         public NotFoundException(String message) { super(message); }

@@ -1,4 +1,4 @@
-package com.vorto.challenge;
+package com.vorto.challenge.common;
 
 
 import org.locationtech.jts.geom.Coordinate;

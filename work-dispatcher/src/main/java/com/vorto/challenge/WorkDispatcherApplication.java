@@ -1,13 +1,7 @@
 package com.vorto.challenge;
 
-import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
-import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
-import org.locationtech.jts.geom.Point;
-import org.locationtech.jts.geom.PrecisionModel;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -15,9 +9,8 @@ import org.springframework.context.annotation.Bean;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.UUID;
 
-import static com.vorto.challenge.JtsGeo.point;
+import static com.vorto.challenge.common.JtsGeo.point;
 
 @SpringBootApplication
 public class WorkDispatcherApplication {

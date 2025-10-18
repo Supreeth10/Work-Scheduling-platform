@@ -13,7 +13,7 @@ import jakarta.transaction.Transactional;
 import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
 
-import static com.vorto.challenge.JtsGeo.point;
+import static com.vorto.challenge.common.JtsGeo.point;
 
 import java.time.Instant;
 import java.util.UUID;

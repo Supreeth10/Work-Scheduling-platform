@@ -1,7 +1,7 @@
 package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.*;
-import com.vorto.challenge.DriverMapper;
+import com.vorto.challenge.common.DriverMapper;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.model.Shift;

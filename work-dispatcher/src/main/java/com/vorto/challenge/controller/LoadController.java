@@ -34,7 +34,7 @@ public class LoadController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public LoadSummaryDto create(@RequestBody @Valid CreateLoadRequest body) throws BadRequestException {
-        return loadService.create(body);
+    public LoadSummaryDto create(@RequestBody @Valid CreateLoadRequest createLoadRequest) throws BadRequestException {
+        return loadService.create(createLoadRequest);
     }
 }

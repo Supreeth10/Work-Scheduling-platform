@@ -6,10 +6,9 @@ public record LoadSummaryDto(
         UUID id,
         String status,           // AWAITING_DRIVER / RESERVED / IN_PROGRESS / COMPLETED
         String currentStop,      // PICKUP / DROPOFF
-        LatLng pickup,
-        LatLng dropoff,
+        LocationDto pickup,
+        LocationDto dropoff,
         DriverLite assignedDriver // null if unassigned
 ) {
-    public record LatLng(double lat, double lng) {}
     public record DriverLite(UUID id, String name) {}
 }

@@ -1,4 +1,4 @@
-package com.vorto.challenge;
+package com.vorto.challenge.common;
 
 import com.vorto.challenge.DTO.DriverDto;
 import com.vorto.challenge.model.Driver;

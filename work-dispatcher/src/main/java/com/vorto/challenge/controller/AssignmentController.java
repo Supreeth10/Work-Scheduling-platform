@@ -7,6 +7,7 @@ import com.vorto.challenge.service.AssignmentService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Map;
 import java.util.UUID;
@@ -57,7 +58,7 @@ public class AssignmentController {
         try {
             RejectOutcome outcome = assignmentService.rejectReservedLoadAndEndShift(driverId, loadId);
             return ResponseEntity.ok(outcome);
-        } catch (org.springframework.web.server.ResponseStatusException e) {
+        } catch (ResponseStatusException e) {
             return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
         } catch (EntityNotFoundException e) {
             return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));

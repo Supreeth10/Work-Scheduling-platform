@@ -1,14 +1,14 @@
-package com.vorto.challenge.service;
+package com.vorto.challenge.service.impl;
 
 import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.DTO.CreateLoadRequest;
-import com.vorto.challenge.model.Driver;
+import com.vorto.challenge.common.LoadMappers;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
-import jakarta.transaction.Transactional;
+import com.vorto.challenge.service.AssignmentService;
+import com.vorto.challenge.service.LoadService;
+import org.springframework.transaction.annotation.Transactional;
 import org.apache.coyote.BadRequestException;
-import org.locationtech.jts.geom.Coordinate;
-import org.locationtech.jts.geom.GeometryFactory;
 import org.locationtech.jts.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -17,40 +17,46 @@ import org.springframework.stereotype.Service;
 import java.util.List;
 import java.util.UUID;
 
+import static com.vorto.challenge.common.JtsGeo.point;
+import static com.vorto.challenge.common.LoadMappers.toLoadSummaryDto;
+
 @Service
 public class LoadServiceImpl implements LoadService {
 
     private final LoadRepository loadRepository;
-    private final GeometryFactory geometryFactory;
     private final AssignmentService assignmentService;
     private static final Logger log = LoggerFactory.getLogger(LoadServiceImpl.class);
 
     public LoadServiceImpl(LoadRepository loadRepository,AssignmentService assignmentService) {
         this.loadRepository = loadRepository;
         this.assignmentService = assignmentService;
-        this.geometryFactory = new GeometryFactory();
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<LoadSummaryDto> getAll(Load.Status statusOpt){
         List<Load> loads = (statusOpt == null)
                 ? loadRepository.findAll()
                 : loadRepository.findAllByStatus(statusOpt);
 
-        return loads.stream().map(this::toDto).toList();
+        return loads.stream().map(LoadMappers::toLoadSummaryDto).toList();
     }
+
+    @Override
+    @Transactional(readOnly = true)
     public LoadSummaryDto getOne(UUID id) {
         Load load = loadRepository.findById(id)
                 .orElseThrow(() -> new NotFoundException("Load %s not found".formatted(id)));
-        return toDto(load);
+        return toLoadSummaryDto(load);
     }
+
     @Override
     @Transactional
-    public LoadSummaryDto create(CreateLoadRequest req) throws BadRequestException {
-        validate(req);
+    public LoadSummaryDto create(CreateLoadRequest createLoadRequest) throws BadRequestException {
+        validate(createLoadRequest);
 
-        Point pickup = point(req.pickup().lat(), req.pickup().lng());
-        Point dropoff = point(req.dropoff().lat(), req.dropoff().lng());
+        Point pickup = point(createLoadRequest.pickup().lat(), createLoadRequest.pickup().lng());
+        Point dropoff = point(createLoadRequest.dropoff().lat(), createLoadRequest.dropoff().lng());
 
         Load load = new Load();
         load.setPickup(pickup);
@@ -62,7 +68,7 @@ public class LoadServiceImpl implements LoadService {
         // Persist first
         Load saved = loadRepository.save(load);
 
-        // ---- defensive auto-assign: don't fail the request if this throws ----
+        // ---- defensive auto-assign: doesn't fail the request if this throws ----
         try {
             assignmentService.tryAssignNewlyCreatedLoad(saved.getId());
         } catch (Exception e) {
@@ -72,30 +78,9 @@ public class LoadServiceImpl implements LoadService {
 
         // Re-read to reflect any assignment that may have happened
         Load refreshed = loadRepository.findById(saved.getId()).orElse(saved);
-        return toDto(refreshed);
+        return toLoadSummaryDto(refreshed);
     }
 
-
-    private LoadSummaryDto toDto(Load l) {
-        LoadSummaryDto.DriverLite driverLite = null;
-        Driver d = l.getAssignedDriver();
-        if (d != null) {
-            driverLite = new LoadSummaryDto.DriverLite(d.getId(), d.getName());
-        }
-        return new LoadSummaryDto(
-                l.getId(),
-                l.getStatus().name(),
-                l.getCurrentStop().name(),
-                toLatLng(l.getPickup()),
-                toLatLng(l.getDropoff()),
-                driverLite
-        );
-    }
-
-    private static LoadSummaryDto.LatLng toLatLng(Point p) {
-        // JTS Point: X = lng, Y = lat
-        return new LoadSummaryDto.LatLng(p.getY(), p.getX());
-    }
 
     private void validate(CreateLoadRequest req) throws BadRequestException {
         if (req == null || req.pickup() == null || req.dropoff() == null) {
@@ -105,18 +90,13 @@ public class LoadServiceImpl implements LoadService {
         checkLatLng("dropoff", req.dropoff().lat(), req.dropoff().lng());
     }
 
+    // TO:DO Use Spring validators instead
     private void checkLatLng(String label, Double lat, Double lng) throws BadRequestException {
         if (lat == null || lng == null) throw new BadRequestException(label + " lat/lng are required");
         if (lat < -90 || lat > 90)   throw new BadRequestException(label + ".lat must be between -90 and 90");
         if (lng < -180 || lng > 180) throw new BadRequestException(label + ".lng must be between -180 and 180");
     }
 
-    private Point point(double lat, double lng) {
-        // JTS uses (x=lng, y=lat)
-        Point p = geometryFactory.createPoint(new Coordinate(lng, lat));
-        p.setSRID(4326);
-        return p;
-    }
 
     public static class NotFoundException extends RuntimeException {
         public NotFoundException(String message) { super(message); }

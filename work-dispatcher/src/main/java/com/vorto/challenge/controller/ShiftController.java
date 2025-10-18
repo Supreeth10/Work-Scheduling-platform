@@ -1,7 +1,8 @@
 package com.vorto.challenge.controller;
 
+import com.vorto.challenge.DTO.DriverEndShiftDto;
+import com.vorto.challenge.DTO.DriverStartShiftDto;
 import com.vorto.challenge.DTO.StartShiftRequest;
-import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.service.ShiftService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -29,18 +30,15 @@ public class ShiftController {
                         "error", "latitude and longitude are required"
                 ));
             }
-            Shift shift = shiftService.startShift(driverId, body.latitude(), body.longitude());
 
-            // Minimal response payload for UI
-            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of(
-                    "shiftId",   shift.getId(),
-                    "driverId",  shift.getDriver().getId(),
-                    "startTime", shift.getStartTime()
-            ));
+            DriverStartShiftDto driverStartShiftDto = shiftService.startShift(driverId, body.latitude(), body.longitude());
+            return ResponseEntity.status(HttpStatus.CREATED).body(driverStartShiftDto);
+
         } catch (EntityNotFoundException e) {
+            //if driver doesnt exist
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
-            // e.g., already on shift (active shift exists)
+            // if driver is already on shift (active shift exists)
             return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
         }
     }
@@ -48,13 +46,10 @@ public class ShiftController {
     @PostMapping("/{driverId}/shift/end")
     public ResponseEntity<?> endShift(@PathVariable UUID driverId) {
         try {
-            Shift ended = shiftService.endShift(driverId);
-            return ResponseEntity.ok(Map.of(
-                    "shiftId", ended.getId(),
-                    "driverId", driverId,
-                    "endTime", ended.getEndTime()
-            ));
-        } catch (jakarta.persistence.EntityNotFoundException e) {
+            DriverEndShiftDto endedShift = shiftService.endShift(driverId);
+            return ResponseEntity.ok(endedShift);
+        } catch (EntityNotFoundException e) {
+            //if driver doesnt exist
             return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
         } catch (IllegalStateException e) {
             // Either no active shift, or has active load

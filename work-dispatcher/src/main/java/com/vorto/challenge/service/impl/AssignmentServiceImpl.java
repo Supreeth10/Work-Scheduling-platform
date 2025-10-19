@@ -56,7 +56,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         // release any expired reservations before selecting
         loadRepo.releaseExpiredReservations(Instant.now());
 
-        // check if driver already has RESERVED/IN_PROGRESS loads
+        // check if driver already has RESERVED/IN_PROGRESS loads. Idempotent check
         Load openLoad = loadRepo.findOpenByDriverId(
                 driverId,
                 List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
@@ -65,7 +65,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (openLoad != null) return toAssignmentResponse(openLoad);
 
         if (driver.getCurrentLocation() == null) {
-            throw new IllegalStateException("Driver location unknown; cannot assign");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Driver location unknown");
         }
         // Reserve the closest available load from driver's current location
         return reserveClosestFrom(driver, activeShift, null);
@@ -271,7 +271,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         loadRepo.releaseExpiredReservations(Instant.now());
 
         if (driver.getCurrentLocation() == null) {
-            throw new IllegalStateException("Driver location unknown; cannot assign"); // cannot place the driver on the map
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Driver location unknown; cannot assign");
         }
 
         //extract driver location

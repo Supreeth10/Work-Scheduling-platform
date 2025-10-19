@@ -11,6 +11,7 @@ import org.springframework.web.ErrorResponseException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.time.OffsetDateTime;
@@ -80,8 +81,26 @@ public class GlobalExceptionHandler {
 
     @ExceptionHandler(ResponseStatusException.class)
     public ResponseEntity<ErrorResponse> handleResponseStatusException(ResponseStatusException ex, HttpServletRequest req) {
-        return build(HttpStatus.valueOf(ex.getStatusCode().value()),
-                ErrorCode.INTERNAL_ERROR, ex.getReason(), req, null);
+        var status = HttpStatus.valueOf(ex.getStatusCode().value());
+        var reason = (ex.getReason() == null ? "" : ex.getReason().toLowerCase());
+
+        ErrorCode code = reason.contains("off-shift") ?
+                        ErrorCode.SHIFT_NOT_ACTIVE : reason.contains("location unknown") ?
+                        ErrorCode.DRIVER_LOCATION_UNKNOWN :reason.contains("state") ?
+                        ErrorCode.LOAD_STATE_CONFLICT :ErrorCode.INTERNAL_ERROR;
+
+        return build(status, code, ex.getReason(), req, null);
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<ErrorResponse> handleTypeMismatch(MethodArgumentTypeMismatchException ex,
+                                                            HttpServletRequest req) {
+        Map<String, Object> details = Map.of(
+                "parameter", ex.getName(),
+                "value", String.valueOf(ex.getValue()),
+                "expectedType", ex.getRequiredType() != null ? ex.getRequiredType().getSimpleName() : "unknown"
+        );
+        return build(HttpStatus.BAD_REQUEST, ErrorCode.VALIDATION_ERROR, "Invalid request parameter", req, details);
     }
 
     @ExceptionHandler(ErrorResponseException.class)

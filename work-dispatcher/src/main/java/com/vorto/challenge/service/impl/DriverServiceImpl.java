@@ -53,7 +53,8 @@ public class DriverServiceImpl implements DriverService {
 
     @Transactional(readOnly = true)
     public Optional<DriverDto> get(UUID id) {
-        return driverRepository.findById(id).map(DriverMapper::toDto);
+        return Optional.ofNullable(driverRepository.findById(id).map(DriverMapper::toDto)
+                .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + id)));
     }
 
     @Override

@@ -84,10 +84,13 @@ public class GlobalExceptionHandler {
         var status = HttpStatus.valueOf(ex.getStatusCode().value());
         var reason = (ex.getReason() == null ? "" : ex.getReason().toLowerCase());
 
-        ErrorCode code = reason.contains("off-shift") ?
-                        ErrorCode.SHIFT_NOT_ACTIVE : reason.contains("location unknown") ?
-                        ErrorCode.DRIVER_LOCATION_UNKNOWN :reason.contains("state") ?
-                        ErrorCode.LOAD_STATE_CONFLICT :ErrorCode.INTERNAL_ERROR;
+        ErrorCode code =
+                reason.contains("off-shift")            ? ErrorCode.SHIFT_NOT_ACTIVE :
+                reason.contains("location unknown")     ? ErrorCode.DRIVER_LOCATION_UNKNOWN :
+                reason.contains("reservation expired")  ? ErrorCode.RESERVATION_EXPIRED :
+                reason.contains("not assigned")         ? ErrorCode.ACCESS_DENIED :
+                reason.contains("invalid state")        ? ErrorCode.LOAD_STATE_CONFLICT :
+                                                          ErrorCode.INTERNAL_ERROR;
 
         return build(status, code, ex.getReason(), req, null);
     }

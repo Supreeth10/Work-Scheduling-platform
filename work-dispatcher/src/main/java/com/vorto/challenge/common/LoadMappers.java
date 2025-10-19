@@ -18,10 +18,12 @@ public final class LoadMappers {
         Point pickup = l.getPickup();
         Point dropoff = l.getDropoff();
 
-        double pickupLat = pickup != null ? pickup.getY() : Double.NaN;
-        double pickupLng = pickup != null ? pickup.getX() : Double.NaN;
-        double dropoffLat = dropoff != null ? dropoff.getY() : Double.NaN;
-        double dropoffLng = dropoff != null ? dropoff.getX() : Double.NaN;
+        Double pickupLat = pickup != null ? pickup.getY() : null;
+        Double pickupLng = pickup != null ? pickup.getX() : null;
+        Double dropoffLat = dropoff != null ? dropoff.getY() : null;
+        Double dropoffLng = dropoff != null ? dropoff.getX() : null;
+        String status = l.getStatus() != null ? l.getStatus().name() : null;
+        String next   = l.getCurrentStop() != null ? l.getCurrentStop().name() : null;
 
         return new LoadAssignmentResponse(
                 l.getId().toString(),
@@ -29,8 +31,8 @@ public final class LoadMappers {
                 pickupLng,
                 dropoffLat,
                 dropoffLng,
-                l.getStatus().name(),
-                l.getCurrentStop().name()
+                status,
+                next
         );
     }
 

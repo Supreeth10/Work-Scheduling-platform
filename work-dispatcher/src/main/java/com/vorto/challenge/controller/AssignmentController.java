@@ -36,14 +36,8 @@ public class AssignmentController {
     // POST /api/drivers/{driverId}/loads/{loadId}/stops/complete
     @PostMapping("/{driverId}/loads/{loadId}/stops/complete")
     public ResponseEntity<?> completeNextStop(@PathVariable UUID driverId, @PathVariable UUID loadId) {
-        try {
             CompleteStopResult resp = assignmentService.completeNextStop (driverId, loadId);
             return ResponseEntity.ok(resp);
-        } catch (org.springframework.web.server.ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
-        } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
-        }
     }
 
     //reject releases the load AND ends the driver's shift. No new assignment.

@@ -8,11 +8,14 @@ import com.vorto.challenge.service.DriverService;
 import jakarta.persistence.EntityNotFoundException;
 import jakarta.validation.Valid;
 import org.springframework.http.ResponseEntity;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.net.URI;
+import java.util.Optional;
 import java.util.UUID;
 
+@Validated
 @RestController
 @RequestMapping("/api/drivers")
 public class DriverController {
@@ -40,10 +43,8 @@ public class DriverController {
     }
 
     @GetMapping("/{id}")
-    public ResponseEntity<?> get(@PathVariable UUID id) {
-        return driverService.get(id)
-                .<ResponseEntity<?>>map(ResponseEntity::ok)
-                .orElseGet(() -> ResponseEntity.notFound().build());
+    public Optional<DriverDto> get(@PathVariable UUID id) {
+        return driverService.get(id);
     }
 
     @GetMapping("/{id}/state")
@@ -51,10 +52,4 @@ public class DriverController {
         return ResponseEntity.ok(driverService.getDriverState(id));
     }
 
-    @ExceptionHandler(EntityNotFoundException.class)
-    public ResponseEntity<?> notFound(EntityNotFoundException ex) {
-        return ResponseEntity.status(404).body(new ErrorPayload("NOT_FOUND", ex.getMessage()));
-    }
-
-    private record ErrorPayload(String code, String message) {}
 }

@@ -53,7 +53,8 @@ public class DriverServiceImpl implements DriverService {
 
     @Transactional(readOnly = true)
     public Optional<DriverDto> get(UUID id) {
-        return driverRepository.findById(id).map(DriverMapper::toDto);
+        return Optional.ofNullable(driverRepository.findById(id).map(DriverMapper::toDto)
+                .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + id)));
     }
 
     @Override
@@ -63,7 +64,7 @@ public class DriverServiceImpl implements DriverService {
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // Active shift (derived from DB, not just the boolean)
-        Optional<Shift> optShift = shiftRepository.findActiveShift(driverId);
+        Optional<Shift> optShift = shiftRepository.findByDriverIdAndEndTimeIsNull(driverId);
         boolean onShift = optShift.isPresent();
 
         // DriverDto (lat/lng from currentLocation geometry)

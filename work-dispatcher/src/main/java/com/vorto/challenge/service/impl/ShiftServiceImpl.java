@@ -9,9 +9,11 @@ import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import com.vorto.challenge.service.ShiftService;
 import jakarta.persistence.EntityNotFoundException;
+import org.springframework.http.HttpStatus;
 import org.springframework.transaction.annotation.Transactional;
 import org.locationtech.jts.geom.Point;
 import org.springframework.stereotype.Service;
+import org.springframework.web.server.ResponseStatusException;
 
 import static com.vorto.challenge.common.JtsGeo.point;
 
@@ -42,9 +44,11 @@ public class ShiftServiceImpl implements ShiftService {
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // Guard against duplicates: either an existing shift row or onShift flag already true
-        if (shiftRepository.existsByDriverIdAndEndTimeIsNull(driverId) || driver.isOnShift()) {
+        boolean hasActiveShift = shiftRepository.existsByDriverIdAndEndTimeIsNull(driverId) || driver.isOnShift();
+        if (hasActiveShift) {
             throw new IllegalStateException("Driver is already on shift.");
         }
+
         Point startPoint = point(latitude, longitude);
 
         // Update driver state
@@ -76,12 +80,12 @@ public class ShiftServiceImpl implements ShiftService {
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // Must have an active shift
-        Shift activeShift = shiftRepository.findFirstByDriverIdAndEndTimeIsNull(driverId)
-                .orElseThrow(() -> new IllegalStateException("Driver has no active shift."));
+        Shift activeShift = shiftRepository.findByDriverIdAndEndTimeIsNull(driverId)
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
 
         // Block if driver has an active load
         if (loadRepository.existsActiveByDriverId(driverId)) {
-            throw new IllegalStateException("Cannot end shift: driver has an active load.");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Cannot end shift: driver has an active load");
         }
 
         // Close shift & flip flag

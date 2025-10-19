@@ -3,7 +3,6 @@ package com.vorto.challenge.service;
 import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.DTO.CreateLoadRequest;
 import com.vorto.challenge.model.Load;
-import org.apache.coyote.BadRequestException;
 
 import java.util.List;
 import java.util.UUID;
@@ -16,8 +15,8 @@ public interface LoadService {
     List<LoadSummaryDto> getAll(Load.Status statusOpt);
 
     /**
-     * Fetch a single load by id or throw NotFoundException.
+     * Fetch a single load by id or throw EntityNotFoundException.
      */
     LoadSummaryDto getOne(UUID id);
-    LoadSummaryDto create(CreateLoadRequest req) throws BadRequestException;
+    LoadSummaryDto create(CreateLoadRequest req);
 }

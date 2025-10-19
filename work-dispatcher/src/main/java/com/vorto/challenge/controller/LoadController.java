@@ -5,13 +5,14 @@ import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.service.LoadService;
 import jakarta.validation.Valid;
-import org.apache.coyote.BadRequestException;
 import org.springframework.http.HttpStatus;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.UUID;
 
+@Validated
 @RestController
 @RequestMapping("/api/loads")
 public class LoadController {
@@ -34,7 +35,7 @@ public class LoadController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public LoadSummaryDto create(@RequestBody @Valid CreateLoadRequest createLoadRequest) throws BadRequestException {
+    public LoadSummaryDto create(@RequestBody @Valid CreateLoadRequest createLoadRequest) {
         return loadService.create(createLoadRequest);
     }
 }

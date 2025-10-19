@@ -7,8 +7,8 @@ import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.service.AssignmentService;
 import com.vorto.challenge.service.LoadService;
+import jakarta.persistence.EntityNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
-import org.apache.coyote.BadRequestException;
 import org.locationtech.jts.geom.Point;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,14 +46,13 @@ public class LoadServiceImpl implements LoadService {
     @Transactional(readOnly = true)
     public LoadSummaryDto getOne(UUID id) {
         Load load = loadRepository.findById(id)
-                .orElseThrow(() -> new NotFoundException("Load %s not found".formatted(id)));
+                .orElseThrow(() -> new EntityNotFoundException("Load not found: " + id));
         return toLoadSummaryDto(load);
     }
 
     @Override
     @Transactional
-    public LoadSummaryDto create(CreateLoadRequest createLoadRequest) throws BadRequestException {
-        validate(createLoadRequest);
+    public LoadSummaryDto create(CreateLoadRequest createLoadRequest) {
 
         Point pickup = point(createLoadRequest.pickup().lat(), createLoadRequest.pickup().lng());
         Point dropoff = point(createLoadRequest.dropoff().lat(), createLoadRequest.dropoff().lng());
@@ -81,24 +80,4 @@ public class LoadServiceImpl implements LoadService {
         return toLoadSummaryDto(refreshed);
     }
 
-
-    private void validate(CreateLoadRequest req) throws BadRequestException {
-        if (req == null || req.pickup() == null || req.dropoff() == null) {
-            throw new BadRequestException("pickup and dropoff are required");
-        }
-        checkLatLng("pickup", req.pickup().lat(), req.pickup().lng());
-        checkLatLng("dropoff", req.dropoff().lat(), req.dropoff().lng());
-    }
-
-    // TO:DO Use Spring validators instead
-    private void checkLatLng(String label, Double lat, Double lng) throws BadRequestException {
-        if (lat == null || lng == null) throw new BadRequestException(label + " lat/lng are required");
-        if (lat < -90 || lat > 90)   throw new BadRequestException(label + ".lat must be between -90 and 90");
-        if (lng < -180 || lng > 180) throw new BadRequestException(label + ".lng must be between -180 and 180");
-    }
-
-
-    public static class NotFoundException extends RuntimeException {
-        public NotFoundException(String message) { super(message); }
-    }
 }

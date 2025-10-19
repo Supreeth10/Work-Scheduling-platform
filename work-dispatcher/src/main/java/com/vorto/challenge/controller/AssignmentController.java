@@ -43,13 +43,7 @@ public class AssignmentController {
     //reject releases the load AND ends the driver's shift. No new assignment.
     @PostMapping("/{driverId}/loads/{loadId}/reject")
     public ResponseEntity<?> reject(@PathVariable UUID driverId, @PathVariable UUID loadId) {
-        try {
             RejectOutcome outcome = assignmentService.rejectReservedLoadAndEndShift(driverId, loadId);
             return ResponseEntity.ok(outcome);
-        } catch (ResponseStatusException e) {
-            return ResponseEntity.status(e.getStatusCode()).body(Map.of("error", e.getReason()));
-        } catch (EntityNotFoundException e) {
-            return ResponseEntity.status(404).body(Map.of("error", e.getMessage()));
-        }
     }
 }

@@ -175,6 +175,11 @@ public class AssignmentServiceImpl implements AssignmentService {
         Load load = loadRepo.findById(loadId)
                 .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
 
+        // Ownership required for reject
+        if (load.getAssignedDriver() == null || !driverId.equals(load.getAssignedDriver().getId())) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Load not assigned to this driver");
+        }
+
         //check if load has already been released or doesn't belong to driver
         boolean alreadyReleased =  load.getStatus() != Load.Status.RESERVED
                                 || load.getAssignedDriver() == null
@@ -189,11 +194,9 @@ public class AssignmentServiceImpl implements AssignmentService {
                     "NO_OP_ALREADY_REJECTED_AND_SHIFT_ENDED", Instant.now());
         }
 
-        if (load.getAssignedDriver() == null || !driverId.equals(load.getAssignedDriver().getId())) {
-            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Load not reserved by this driver");
-        }
+
         if (load.getStatus() != Load.Status.RESERVED) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only RESERVED loads can be rejected");
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "Only reserved loads can be rejected");
         }
 
         // Release the reservation back to the pool

@@ -90,7 +90,7 @@ public class GlobalExceptionHandler {
                 reason.contains("reservation expired")  ? ErrorCode.RESERVATION_EXPIRED :
                 reason.contains("not assigned")         ? ErrorCode.ACCESS_DENIED :
                 reason.contains("active shift")         ? ErrorCode.ACTIVE_LOAD_PRESENT :
-                reason.contains("invalid state")        ? ErrorCode.LOAD_STATE_CONFLICT :
+                reason.contains("invalid state") || reason.contains("reserved loads")       ? ErrorCode.LOAD_STATE_CONFLICT :
                                                           ErrorCode.INTERNAL_ERROR;
 
         return build(status, code, ex.getReason(), req, null);

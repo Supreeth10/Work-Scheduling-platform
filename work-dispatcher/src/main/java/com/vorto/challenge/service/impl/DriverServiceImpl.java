@@ -63,7 +63,7 @@ public class DriverServiceImpl implements DriverService {
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // Active shift (derived from DB, not just the boolean)
-        Optional<Shift> optShift = shiftRepository.findActiveShift(driverId);
+        Optional<Shift> optShift = shiftRepository.findByDriverIdAndEndTimeIsNull(driverId);
         boolean onShift = optShift.isPresent();
 
         // DriverDto (lat/lng from currentLocation geometry)

@@ -15,11 +15,6 @@ public interface ShiftRepository extends JpaRepository<Shift, UUID> {
     boolean existsByDriverId(UUID driverId);
     // True iff there's an active shift
     boolean existsByDriverIdAndEndTimeIsNull(UUID driverId);
-    // Retrieve the active shift in order to end it
-    Optional<Shift> findFirstByDriverIdAndEndTimeIsNull(UUID driverId);
-    @Query("""
-      select s from Shift s
-      where s.driver.id = :driverId and s.endTime is null
-    """)
-    Optional<Shift> findActiveShift(UUID driverId);
+    // Retrieve the active shift
+    Optional<Shift> findByDriverIdAndEndTimeIsNull(UUID driverId);
 }

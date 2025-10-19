@@ -35,15 +35,7 @@ public class ShiftController {
 
     @PostMapping("/{driverId}/shift/end")
     public ResponseEntity<?> endShift(@PathVariable UUID driverId) {
-        try {
             DriverEndShiftDto endedShift = shiftService.endShift(driverId);
             return ResponseEntity.ok(endedShift);
-        } catch (EntityNotFoundException e) {
-            //if driver doesnt exist
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("error", e.getMessage()));
-        } catch (IllegalStateException e) {
-            // Either no active shift, or has active load
-            return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("error", e.getMessage()));
-        }
     }
 }

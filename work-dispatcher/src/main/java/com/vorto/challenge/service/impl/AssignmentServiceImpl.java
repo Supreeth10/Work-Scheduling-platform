@@ -50,7 +50,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
 
         // driver must be on an active shift
-        Shift activeShift = shiftRepo.findActiveShift(driverId)
+        Shift activeShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
 
         // release any expired reservations before selecting
@@ -84,7 +84,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         // driver must exist and be on an active shift
         Driver driver = driverRepo.findById(driverId)
                 .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
-        Shift activeShift = shiftRepo.findActiveShift(driverId)
+        Shift activeShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
         // Load must exist
         Load load = loadRepo.findById(loadId)
@@ -181,7 +181,7 @@ public class AssignmentServiceImpl implements AssignmentService {
                                 || !driverId.equals(load.getAssignedDriver().getId());
 
         // also check driver is already off-shift
-        boolean offShift = shiftRepo.findActiveShift(driverId).isEmpty();
+        boolean offShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driverId).isEmpty();
 
         // Idempotency/NO-OP: if the reservation is already released AND the driver is already off shift
         if (alreadyReleased && offShift) {
@@ -200,7 +200,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         releaseReservation(load);
 
         // End the active shift
-        Shift activeShift = shiftRepo.findActiveShift(driverId)
+        Shift activeShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driverId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, "Driver is off-shift"));
 
         Instant endedAt = Instant.now();
@@ -247,7 +247,7 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (driver == null) return;
 
         // Need the active shift to attach the reservation
-        Shift activeShift = shiftRepo.findActiveShift(driver.getId())
+        Shift activeShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driver.getId())
                 .orElse(null);
         if (activeShift == null) return; // race: driver went off-shift
 

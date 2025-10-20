@@ -67,19 +67,15 @@ public class DriverServiceImpl implements DriverService {
         Optional<Shift> optShift = shiftRepository.findByDriverIdAndEndTimeIsNull(driverId);
         boolean onShift = optShift.isPresent();
 
-        // DriverDto (lat/lng from currentLocation geometry)
-        LocationDto curLoc = toLatLng(driver.getCurrentLocation());
-        Double dLat = (curLoc == null) ? null : curLoc.lat();
-        Double dLng = (curLoc == null) ? null : curLoc.lng();
-        DriverDto driverDto = new DriverDto(driver.getId(), driver.getName(), onShift, dLat, dLng);
+
+        LocationDto curLoc = (driver.getCurrentLocation() == null) ? null : toLatLng(driver.getCurrentLocation());
+        DriverDto driverDto = new DriverDto(driver.getId(), driver.getName(), onShift, curLoc);
 
        // ShiftDto (if on shift)
         ShiftDto shiftDto = optShift
                 .map(s -> {
-                    LocationDto startLoc = toLatLng(s.getStartLocation());
-                    Double sLat = (startLoc == null) ? null : startLoc.lat();
-                    Double sLng = (startLoc == null) ? null : startLoc.lng();
-                    return new ShiftDto(s.getId(), s.getStartTime(), sLat, sLng);
+                    LocationDto startLoc = (s.getStartLocation() == null) ? null : toLatLng(s.getStartLocation());
+                    return new ShiftDto(s.getId(), s.getStartTime(), startLoc);
                 })
                 .orElse(null);
 

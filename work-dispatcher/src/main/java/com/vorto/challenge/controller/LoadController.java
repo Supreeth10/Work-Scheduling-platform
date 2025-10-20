@@ -18,7 +18,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
-import io.swagger.v3.oas.annotations.parameters.RequestBody;
+
 
 import java.util.List;
 import java.util.UUID;
@@ -192,7 +192,7 @@ public class LoadController {
             summary = "Create a new load",
             description = "Creates a load with pickup and dropoff coordinates."
     )
-    @RequestBody(
+    @io.swagger.v3.oas.annotations.parameters.RequestBody(
             required = true,
             content = @Content(
                     schema = @Schema(implementation = CreateLoadRequest.class),

@@ -12,9 +12,11 @@ import jakarta.validation.constraints.NotNull;
 @Schema(description = "Request to create a load with pickup and dropoff coordinates")
 public record CreateLoadRequest(
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Pickup coordinate")
-        @NotNull @Valid @JsonProperty("pickup") LatLng pickup,
+        @NotNull @Valid @JsonProperty("pickup")
+        LatLng pickup,
         @Schema(requiredMode = Schema.RequiredMode.REQUIRED, description = "Dropoff coordinate")
-        @NotNull @Valid @JsonProperty("dropoff") LatLng dropoff
+        @NotNull @Valid @JsonProperty("dropoff")
+        LatLng dropoff
 ) {
     @Schema(description = "Latitude/Longitude pair")
     public record LatLng(

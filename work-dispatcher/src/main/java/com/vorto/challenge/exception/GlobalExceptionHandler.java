@@ -89,7 +89,7 @@ public class GlobalExceptionHandler {
                 reason.contains("location unknown")     ? ErrorCode.DRIVER_LOCATION_UNKNOWN :
                 reason.contains("reservation expired")  ? ErrorCode.RESERVATION_EXPIRED :
                 reason.contains("not assigned")         ? ErrorCode.ACCESS_DENIED :
-                reason.contains("active shift")         ? ErrorCode.ACTIVE_LOAD_PRESENT :
+                reason.contains("active load")         ? ErrorCode.ACTIVE_LOAD_PRESENT :
                 reason.contains("invalid state") || reason.contains("reserved loads")       ? ErrorCode.LOAD_STATE_CONFLICT :
                                                           ErrorCode.INTERNAL_ERROR;
 

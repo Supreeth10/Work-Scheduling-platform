@@ -24,8 +24,6 @@ function normalizeLoad(dto) {
     const currentStop = dto.currentStop ?? dto.nextStop ?? null
 
     // --- Pickup variants ---
-    // nested: pickup: { lat, lng }
-    // flat:   pickupLat/pickupLng OR pickupLatitude/pickupLongitude
     const pickLat =
         dto.pickup?.lat ??
         dto.pickupLat ??
@@ -83,11 +81,11 @@ export async function login(username) {
     return res.json()
 }
 
-export async function startShift(driverId, { latitude, longitude }) {
+export async function startShift(driverId, { lat, lng }) {
     const res = await fetch(`/api/drivers/${driverId}/shift/start`, {
         method: 'POST',
         headers: JSON_HEADERS,
-        body: JSON.stringify({ latitude, longitude })
+        body: JSON.stringify({ lat, lng }) // ← flat lat/lng per new backend contract
     })
     if (!res.ok) throw new Error('Start shift failed')
     return res.json().catch(() => ({}))
@@ -173,7 +171,25 @@ export async function createLoad({ pickup, dropoff }) {
         headers: JSON_HEADERS,
         body: JSON.stringify({ pickup, dropoff })
     })
-    if (!res.ok) throw new Error('Create load failed')
+
+    if (!res.ok) {
+        // Try to decode standardized ErrorResponse from backend
+        let payload = null
+        try { payload = await res.json() } catch { /* ignore */ }
+
+        const backendMsg =
+            payload?.details?.fields?.distinctStops ||
+            payload?.message ||
+            'Create load failed'
+
+        const err = new Error(backendMsg)
+        err.status = res.status
+        err.code = payload?.code
+        err.details = payload?.details
+        err.path = payload?.path
+        throw err
+    }
+
     const created = await res.json().catch(() => null)
     return created ? normalizeLoad(created) : null
 }

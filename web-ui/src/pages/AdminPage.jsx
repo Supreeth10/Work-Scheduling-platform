@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MapView from '../components/MapView'
 import { createLoad, getLoads } from '../services/api'
@@ -59,12 +59,22 @@ export default function AdminPage() {
 
     const allFilled = isNum(pickup.lat) && isNum(pickup.lng) && isNum(dropoff.lat) && isNum(dropoff.lng)
     const allValid = inLat(pickup.lat) && inLng(pickup.lng) && inLat(dropoff.lat) && inLng(dropoff.lng)
-    const canSubmit = allFilled && allValid && !loading
+    const sameCoords =
+        allFilled &&
+        Number(pickup.lat) === Number(dropoff.lat) &&
+        Number(pickup.lng) === Number(dropoff.lng)
+    const canSubmit = allFilled && allValid && !sameCoords && !loading
 
     const submitLoad = async () => {
         try {
             setLoading(true); setError('')
-            // convert (already numbers) and send
+
+            // local guard (should be disabled already, but double-check)
+            if (sameCoords) {
+                showNotice('Pickup and dropoff cannot be the same coordinates', 'error', 5000)
+                return
+            }
+
             const created = await createLoad({
                 pickup: { lat: Number(pickup.lat), lng: Number(pickup.lng) },
                 dropoff: { lat: Number(dropoff.lat), lng: Number(dropoff.lng) }
@@ -77,8 +87,10 @@ export default function AdminPage() {
                 'success'
             )
         } catch (e) {
-            setError(e.message)
-            showNotice('Failed to create load.', 'error', 5000)
+            // 👇 This will show the backend message if present (from apis.js)
+            const msg = e?.message || 'Failed to create load.'
+            setError(msg)
+            showNotice(msg, 'error', 6000)
         } finally {
             setLoading(false)
         }
@@ -198,7 +210,12 @@ export default function AdminPage() {
                         style={{ marginTop: 8, opacity: canSubmit ? 1 : 0.6, cursor: canSubmit ? 'pointer' : 'not-allowed' }}
                         onClick={submitLoad}
                         disabled={!canSubmit}
-                        title={!canSubmit ? 'Enter valid coordinates for all fields' : 'Create Load'}
+                        title={
+                            !allFilled ? 'Enter valid coordinates for all fields' :
+                                !allValid ? 'One or more coordinates are out of range' :
+                                    sameCoords ? 'Pickup and dropoff cannot be the same coordinates' :
+                                        'Create Load'
+                        }
                     >
                         Create Load
                     </button>

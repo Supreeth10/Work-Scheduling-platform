@@ -169,17 +169,17 @@ export default function DriverPage() {
         try {
             setLoading(true); setError('')
 
-            const latitude = parseFloat(lat)
-            const longitude = parseFloat(lng)
-            if (Number.isNaN(latitude) || Number.isNaN(longitude)) {
-                throw new Error('Please provide valid numeric latitude and longitude (or use "Use my location").')
+            const latNum = parseFloat(lat)
+            const lngNum = parseFloat(lng)
+            if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
+                throw new Error('Please provide valid numeric lat and lng (or use "Use my location").')
             }
-            if (latitude < -90 || latitude > 90 || longitude < -180 || longitude > 180) {
-                throw new Error('Latitude must be between -90 and 90, longitude between -180 and 180.')
+            if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
+                throw new Error('lat must be between -90 and 90, lng between -180 and 180.')
             }
 
             const id = getDriverId()
-            await startShift(id, { latitude, longitude })
+            await startShift(id, { lat: latNum, lng: lngNum })
 
             const a = await getCurrentAssignment(id)
             if (a) {

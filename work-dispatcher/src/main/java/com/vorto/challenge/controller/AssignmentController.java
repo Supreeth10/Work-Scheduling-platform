@@ -49,15 +49,19 @@ public class AssignmentController {
                             examples = @ExampleObject(
                                     name = "Reserved example",
                                     value = """
-                {
-                  "loadId": "6b0f5f4d-0b9f-4e28-9a4c-7c9f4c7b9f1c",
-                  "pickupLat": 39.7392,
-                  "pickupLng": -104.9903,
-                  "dropoffLat": 39.8021,
-                  "dropoffLng": -105.0870,
-                  "status": "RESERVED",
-                  "nextStop": "PICKUP"
-                }
+                                            {
+                                                 "loadId": "eefe1c0f-6bed-4d15-beb7-58273fbffa0d",
+                                                 "pickup": {
+                                                     "lat": 39.7392,
+                                                     "lng": -104.9903
+                                                 },
+                                                 "dropoff": {
+                                                     "lat": 38.8339,
+                                                     "lng": -104.8214
+                                                 },
+                                                 "status": "RESERVED",
+                                                 "nextStop": "PICKUP"
+                                             }
                 """
                             ))),
             @ApiResponse(responseCode = "204", description = "No assignment available"),
@@ -148,16 +152,20 @@ public class AssignmentController {
                                     @ExampleObject(
                                             name = "After completing PICKUP",
                                             value = """
-                    {
-                      "completed": {
-                        "loadId": "6b0f5f4d-0b9f-4e28-9a4c-7c9f4c7b9f1c",
-                        "pickupLat": 39.7392,
-                        "pickupLng": -104.9903,
-                        "dropoffLat": 39.8021,
-                        "dropoffLng": -105.0870,
-                        "status": "IN_PROGRESS",
-                        "nextStop": "DROPOFF"
-                      },
+                                                    {
+                                                           "completed": {
+                                                               "loadId": "772d5d11-8210-4bcf-81b0-787789c743f7",
+                                                               "pickup": {
+                                                                   "lat": 33.44,
+                                                                   "lng": -112.07
+                                                               },
+                                                               "dropoff": {
+                                                                   "lat": 34.2226,
+                                                                   "lng": -115.9747
+                                                               },
+                                                               "status": "COMPLETED",
+                                                               "nextStop": "DROPOFF"
+                                                           },
                       "nextAssignment": null
                     }
                     """
@@ -165,26 +173,34 @@ public class AssignmentController {
                                     @ExampleObject(
                                             name = "After completing DROPOFF (load completed)",
                                             value = """
-                    {
-                      "completed": {
-                        "loadId": "6b0f5f4d-0b9f-4e28-9a4c-7c9f4c7b9f1c",
-                        "pickupLat": 39.7392,
-                        "pickupLng": -104.9903,
-                        "dropoffLat": 39.8021,
-                        "dropoffLng": -105.0870,
-                        "status": "COMPLETED",
-                        "nextStop": "DROPOFF"
-                      },
-                      "nextAssignment": {
-                        "loadId": "b2b25f8a-9a88-4a9e-8b6d-8c0a3a5dfc40",
-                        "pickupLat": 39.7500,
-                        "pickupLng": -104.9800,
-                        "dropoffLat": 39.8200,
-                        "dropoffLng": -105.0500,
-                        "status": "RESERVED",
-                        "nextStop": "PICKUP"
-                      }
-                    }
+                                                    {
+                                                         "completed": {
+                                                             "loadId": "772d5d11-8210-4bcf-81b0-787789c743f7",
+                                                             "pickup": {
+                                                                 "lat": 33.44,
+                                                                 "lng": -112.07
+                                                             },
+                                                             "dropoff": {
+                                                                 "lat": 34.2226,
+                                                                 "lng": -115.9747
+                                                             },
+                                                             "status": "COMPLETED",
+                                                             "nextStop": "DROPOFF"
+                                                         },
+                                                         "nextAssignment": {
+                                                             "loadId": "d53cbc87-b485-47e7-aa86-552da503df41",
+                                                             "pickup": {
+                                                                 "lat": 40.01499,
+                                                                 "lng": -105.27055
+                                                             },
+                                                             "dropoff": {
+                                                                 "lat": 39.7392,
+                                                                 "lng": -104.9903
+                                                             },
+                                                             "status": "RESERVED",
+                                                             "nextStop": "PICKUP"
+                                                         }
+                                                     }
                     """
                                     )
                             })),

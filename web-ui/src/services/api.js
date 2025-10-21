@@ -16,60 +16,31 @@ function noCache(url) {
  * }
  */
 function normalizeLoad(dto) {
-    if (!dto) return null
+    if (!dto) return null;
 
-    // IDs / status
-    const id = dto.id ?? dto.loadId
-    const status = dto.status ?? null
-    const currentStop = dto.currentStop ?? dto.nextStop ?? null
+    // unify id + currentStop naming across endpoints
+    const id = dto.id ?? dto.loadId ?? null;
+    const status = dto.status ?? null;
+    const currentStop = dto.currentStop ?? dto.nextStop ?? null;
 
-    // --- Pickup variants ---
-    const pickLat =
-        dto.pickup?.lat ??
-        dto.pickupLat ??
-        dto.pickupLatitude ??
-        null
-    const pickLng =
-        dto.pickup?.lng ??
-        dto.pickupLng ??
-        dto.pickupLongitude ??
-        null
+    // backend returns canonical nested { lat, lng }
+    const toLoc = (p) =>
+        p && p.lat != null && p.lng != null
+            ? { lat: Number(p.lat), lng: Number(p.lng) }
+            : null;
 
-    const pickup =
-        (pickLat != null && pickLng != null)
-            ? { lat: Number(pickLat), lng: Number(pickLng) }
-            : null
+    const pickup = toLoc(dto.pickup);
+    const dropoff = toLoc(dto.dropoff);
 
-    // --- Dropoff variants ---
-    const dropLat =
-        dto.dropoff?.lat ??
-        dto.dropoffLat ??
-        dto.dropoffLatitude ??
-        null
-    const dropLng =
-        dto.dropoff?.lng ??
-        dto.dropoffLng ??
-        dto.dropoffLongitude ??
-        null
+    // assignedDriver should already be { id, name }
+    const assignedDriver =
+        dto.assignedDriver && (dto.assignedDriver.id || dto.assignedDriver.name)
+            ? { id: dto.assignedDriver.id ?? null, name: dto.assignedDriver.name ?? null }
+            : null;
 
-    const dropoff =
-        (dropLat != null && dropLng != null)
-            ? { lat: Number(dropLat), lng: Number(dropLng) }
-            : null
-
-    // --- Assigned driver variants ---
-    let assignedDriver = null
-    if (dto.assignedDriver && (dto.assignedDriver.id || dto.assignedDriver.name)) {
-        assignedDriver = { id: dto.assignedDriver.id, name: dto.assignedDriver.name }
-    } else if (dto.assignedDriverName || dto.driverName || dto.assignedTo) {
-        assignedDriver = {
-            id: dto.assignedDriverId ?? dto.driverId ?? null,
-            name: dto.assignedDriverName ?? dto.driverName ?? dto.assignedTo ?? null
-        }
-    }
-
-    return { id, status, currentStop, pickup, dropoff, assignedDriver }
+    return { id, status, currentStop, pickup, dropoff, assignedDriver };
 }
+
 
 export async function login(username) {
     const res = await fetch('/api/drivers/login', {
@@ -130,13 +101,13 @@ export async function completeCurrentStop(driverId, loadId) {
 
     if (res.status === 409) {
         let msg = 'Reservation expired. Fetch assignment again.'
-        try { const t = await res.text(); if (t) msg = t } catch {}
+        try { const t = await res.text(); if (t) msg = t } catch { /* empty */ }
         const err = new Error(msg); err.status = 409; throw err
     }
 
     if (!res.ok) {
         let msg = 'Complete next stop failed'
-        try { const t = await res.text(); if (t) msg = t } catch {}
+        try { const t = await res.text(); if (t) msg = t } catch { /* empty */ }
         const err = new Error(msg); err.status = res.status; throw err
     }
 

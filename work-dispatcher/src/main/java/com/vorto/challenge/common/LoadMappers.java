@@ -2,6 +2,7 @@ package com.vorto.challenge.common;
 
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
 import com.vorto.challenge.DTO.LoadSummaryDto;
+import com.vorto.challenge.DTO.LocationDto;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
 import org.locationtech.jts.geom.Point;
@@ -17,20 +18,16 @@ public final class LoadMappers {
 
         Point pickup = l.getPickup();
         Point dropoff = l.getDropoff();
+        LocationDto pickupDto = (pickup == null) ? null : toLatLng(pickup);
+        LocationDto dropoffDto = (dropoff == null) ? null : toLatLng(dropoff);
 
-        Double pickupLat = pickup != null ? pickup.getY() : null;
-        Double pickupLng = pickup != null ? pickup.getX() : null;
-        Double dropoffLat = dropoff != null ? dropoff.getY() : null;
-        Double dropoffLng = dropoff != null ? dropoff.getX() : null;
         String status = l.getStatus() != null ? l.getStatus().name() : null;
         String next   = l.getCurrentStop() != null ? l.getCurrentStop().name() : null;
 
         return new LoadAssignmentResponse(
                 l.getId().toString(),
-                pickupLat,
-                pickupLng,
-                dropoffLat,
-                dropoffLng,
+                pickupDto,
+                dropoffDto,
                 status,
                 next
         );

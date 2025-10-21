@@ -118,7 +118,7 @@ public class ShiftController {
     public ResponseEntity<?> startShift(
             @PathVariable("driverId") UUID driverId,
             @Valid @RequestBody StartShiftRequest body){
-            DriverStartShiftDto driverStartShiftDto = shiftService.startShift(driverId, body.latitude(), body.longitude());
+        DriverStartShiftDto driverStartShiftDto = shiftService.startShift(driverId,body.currentLocation().lat(),body.currentLocation().lng());
             return ResponseEntity.status(HttpStatus.CREATED).body(driverStartShiftDto);
     }
     /**

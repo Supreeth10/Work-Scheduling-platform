@@ -47,13 +47,15 @@ public class DriverController {
                             examples = @ExampleObject(
                                     name = "Existing driver",
                                     value = """
-                    {
-                      "id": "3bfd7de8-3ead-4443-9abd-53dd8cc85ec0",
-                      "name": "rama",
-                      "onShift": true,
-                      "latitude": 31.4484,
-                      "longitude": -110.074
-                    }
+                                            {
+                                                 "id": "b1b63042-f1ce-4054-b914-40be3662c16f",
+                                                 "name": "surat",
+                                                 "onShift": true,
+                                                 "currentLocation": {
+                                                     "lat": 33.44,
+                                                     "lng": -112.07
+                                                 }
+                                             }
                     """
                             ))),
 
@@ -63,13 +65,12 @@ public class DriverController {
                             examples = @ExampleObject(
                                     name = "New driver",
                                     value = """
-                    {
-                      "id": "194e1e4a-296d-4f35-b174-c5a3db524fee",
-                      "name": "rama1",
-                      "onShift": false,
-                      "latitude": null,
-                      "longitude": null
-                    }
+                                            {
+                                                 "id": "dd4de4d7-edfb-437d-b803-0e93fdc12f86",
+                                                 "name": "alexis",
+                                                 "onShift": false,
+                                                 "currentLocation": null
+                                             }
                     """
                             ))),
 
@@ -133,13 +134,15 @@ public class DriverController {
                             examples = @ExampleObject(
                                     name = "Driver",
                                     value = """
-                    {
-                      "id": "194e1e4a-296d-4f35-b174-c5a3db524fee",
-                      "name": "rama1",
-                      "onShift": false,
-                      "latitude": null,
-                      "longitude": null
-                    }
+                                            {
+                                                 "id": "b1b63042-f1ce-4054-b914-40be3662c16f",
+                                                 "name": "surat",
+                                                 "onShift": true,
+                                                 "currentLocation": {
+                                                     "lat": 33.44,
+                                                     "lng": -112.07
+                                                 }
+                                             }
                     """
                             ))),
 
@@ -199,32 +202,42 @@ public class DriverController {
                                     @ExampleObject(
                                             name = "Load in progress",
                                             value = """
-                        {
-                          "driver": {
-                            "id": "3bfd7de8-3ead-4443-9abd-53dd8cc85ec0",
-                            "name": "rama",
-                            "onShift": true,
-                            "latitude": 31.4484,
-                            "longitude": -110.074
-                          },
-                          "shift": {
-                            "id": "44e2e372-c01f-488c-80e5-4bc6e07f3c48",
-                            "startedAt": "2025-10-20T01:48:18.287582Z",
-                            "startLat": 33.4484,
-                            "startLng": -112.074
-                          },
-                          "load": {
-                            "id": "d6ec4317-25cd-44e0-bc38-4601f804dd03",
-                            "status": "IN_PROGRESS",
-                            "currentStop": "DROPOFF",
-                            "pickup": { "lat": 31.4484, "lng": -110.074 },
-                            "dropoff": { "lat": 34.2226, "lng": -115.9747 },
-                            "assignedDriver": {
-                              "id": "3bfd7de8-3ead-4443-9abd-53dd8cc85ec0",
-                              "name": "rama"
-                            }
-                          }
-                        }
+                                                    {
+                                                         "driver": {
+                                                             "id": "b1b63042-f1ce-4054-b914-40be3662c16f",
+                                                             "name": "surat",
+                                                             "onShift": true,
+                                                             "currentLocation": {
+                                                                 "lat": 39.7392,
+                                                                 "lng": -104.9903
+                                                             }
+                                                         },
+                                                         "shift": {
+                                                             "id": "2b5f0af7-0b62-4e6b-bec5-331c57e6dc27",
+                                                             "startedAt": "2025-10-21T03:12:52.838809Z",
+                                                             "startLocation": {
+                                                                 "lat": 33.44,
+                                                                 "lng": -112.07
+                                                             }
+                                                         },
+                                                         "load": {
+                                                             "id": "d881f618-2058-492e-8106-ffc1ef2edcdf",
+                                                             "status": "IN_PROGRESS",
+                                                             "currentStop": "DROPOFF",
+                                                             "pickup": {
+                                                                 "lat": 39.7392,
+                                                                 "lng": -104.9903
+                                                             },
+                                                             "dropoff": {
+                                                                 "lat": 33.4484,
+                                                                 "lng": -112.074
+                                                             },
+                                                             "assignedDriver": {
+                                                                 "id": "b1b63042-f1ce-4054-b914-40be3662c16f",
+                                                                 "name": "surat"
+                                                             }
+                                                         }
+                                                     }
                         """
                                     ),
                                     @ExampleObject(
@@ -235,14 +248,18 @@ public class DriverController {
                             "id": "3bfd7de8-3ead-4443-9abd-53dd8cc85ec0",
                             "name": "rama",
                             "onShift": true,
-                            "latitude": 34.2226,
-                            "longitude": -115.9747
+                            "currentLocation": {
+                                                                 "lat": 39.7392,
+                                                                 "lng": -104.9903
+                                                             }
                           },
                           "shift": {
                             "id": "44e2e372-c01f-488c-80e5-4bc6e07f3c48",
                             "startedAt": "2025-10-20T01:48:18.287582Z",
-                            "startLat": 33.4484,
-                            "startLng": -112.074
+                            "startLocation": {
+                                                                 "lat": 33.44,
+                                                                 "lng": -112.07
+                                                             }
                           },
                           "load": null
                         }
@@ -251,17 +268,16 @@ public class DriverController {
                                     @ExampleObject(
                                             name = "Off shift",
                                             value = """
-                        {
-                          "driver": {
-                            "id": "3bfd7de8-3ead-4443-9abd-53dd8cc85ec0",
-                            "name": "rama",
-                            "onShift": false,
-                            "latitude": null,
-                            "longitude": null
-                          },
-                          "shift": null,
-                          "load": null
-                        }
+                                                    {
+                                                         "driver": {
+                                                             "id": "b1b63042-f1ce-4054-b914-40be3662c16f",
+                                                             "name": "surat",
+                                                             "onShift": false,
+                                                             "currentLocation": null
+                                                         },
+                                                         "shift": null,
+                                                         "load": null
+                                                     }
                         """
                                     )
                             })),

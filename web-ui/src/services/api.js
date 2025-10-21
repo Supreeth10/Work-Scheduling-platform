@@ -1,6 +1,6 @@
 const JSON_HEADERS = { 'Content-Type': 'application/json' }
 
-// Small helper to force no-cache GETs
+//  helper to force no-cache GETs
 function noCache(url) {
     const u = new URL(url, window.location.origin)
     u.searchParams.set('_t', Date.now().toString())
@@ -56,7 +56,7 @@ export async function startShift(driverId, { lat, lng }) {
     const res = await fetch(`/api/drivers/${driverId}/shift/start`, {
         method: 'POST',
         headers: JSON_HEADERS,
-        body: JSON.stringify({ lat, lng }) // ← flat lat/lng per new backend contract
+        body: JSON.stringify({ lat, lng })
     })
     if (!res.ok) throw new Error('Start shift failed')
     return res.json().catch(() => ({}))

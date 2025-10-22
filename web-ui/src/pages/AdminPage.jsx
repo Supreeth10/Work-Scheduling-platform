@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import MapView from '../components/MapView'
-import { createLoad, getLoads } from '../services/api'
+import { createLoad, getLoads, ApiError } from '../services/api'
 
 function fmt(n) {
     if (n == null || Number.isNaN(Number(n))) return '—'
@@ -14,7 +14,7 @@ export default function AdminPage() {
     // notice banner
     const [notice, setNotice] = useState('')
     const [noticeType, setNoticeType] = useState('success') // 'success' | 'info' | 'error'
-    const [noticeTimer, setNoticeTimer] = useState(null)
+    const noticeTimerRef = useRef(null)                                          // useRef for timer id
 
     // allow temporary '' while typing to avoid NaN -> Leaflet crash
     const [pickup, setPickup] = useState({ lat: 39.7392, lng: -104.9903 }) // Denver
@@ -24,41 +24,59 @@ export default function AdminPage() {
     const [status, setStatus] = useState('')
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState('')
+    const [lastUpdated, setLastUpdated] = useState(null)                          // show when list was refreshed
 
     const showNotice = (msg, type = 'success', ms = 4000) => {
         setNotice(msg)
         setNoticeType(type)
-        if (noticeTimer) clearTimeout(noticeTimer)
-        const t = setTimeout(() => setNotice(''), ms)
-        setNoticeTimer(t)
+        if (noticeTimerRef.current) clearTimeout(noticeTimerRef.current)
+        noticeTimerRef.current = setTimeout(() => setNotice(''), ms)
     }
 
     const refresh = async () => {
         try {
             setLoading(true); setError('')
-            const data = await getLoads(status)
+            const data = await getLoads(status)                                       // (no-cache inside API)
             setLoads(data || [])
-        } catch (e) { setError(e.message) } finally { setLoading(false) }
+            setLastUpdated(new Date())                                                // NEW
+        } catch (e) {
+            const msg = e?.message || 'Failed to fetch loads.'
+            setError(msg)
+        } finally {
+            setLoading(false)
+        }
     }
 
-    useEffect(() => { refresh() }, [status])
+    //  polling loop (15s) that reacts to status filter changes
+    useEffect(() => {
+        let timer
+        const tick = async () => {
+            await refresh()
+            timer = setTimeout(tick, 15000) // 15s polling
+        }
+        tick()
+        return () => { if (timer) clearTimeout(timer) }
+    }, [status])
+
+    //isten for driver-side "nudge" to refresh immediately after reservation expiry or other changes
+    useEffect(() => {
+        const onLoadsRefresh = () => refresh()
+        window.addEventListener('loads:refresh', onLoadsRefresh)
+        return () => window.removeEventListener('loads:refresh', onLoadsRefresh)
+    }, [])
 
     // ---------- validation helpers ----------
-    const isNum = (v) => typeof v === 'number' && Number.isFinite(v)
-    const inLat = (v) => isNum(v) && v >= -90 && v <= 90
-    const inLng = (v) => isNum(v) && v >= -180 && v <= 180
+    const isNum  = (v) => typeof v === 'number' && Number.isFinite(v)
+    const inLat  = (v) => isNum(v) && v >= -90 && v <= 90
+    const inLng  = (v) => isNum(v) && v >= -180 && v <= 180
 
-    const pickupLatErr =
-        pickup.lat === '' ? '' : (inLat(pickup.lat) ? '' : 'Latitude must be between -90 and 90')
-    const pickupLngErr =
-        pickup.lng === '' ? '' : (inLng(pickup.lng) ? '' : 'Longitude must be between -180 and 180')
-    const dropoffLatErr =
-        dropoff.lat === '' ? '' : (inLat(dropoff.lat) ? '' : 'Latitude must be between -90 and 90')
-    const dropoffLngErr =
-        dropoff.lng === '' ? '' : (inLng(dropoff.lng) ? '' : 'Longitude must be between -180 and 180')
+    const pickupLatErr   = pickup.lat   === '' ? '' : (inLat(pickup.lat)   ? '' : 'Latitude must be between -90 and 90')
+    const pickupLngErr   = pickup.lng   === '' ? '' : (inLng(pickup.lng)   ? '' : 'Longitude must be between -180 and 180')
+    const dropoffLatErr  = dropoff.lat  === '' ? '' : (inLat(dropoff.lat)  ? '' : 'Latitude must be between -90 and 90')
+    const dropoffLngErr  = dropoff.lng  === '' ? '' : (inLng(dropoff.lng)  ? '' : 'Longitude must be between -180 and 180')
 
     const allFilled = isNum(pickup.lat) && isNum(pickup.lng) && isNum(dropoff.lat) && isNum(dropoff.lng)
-    const allValid = inLat(pickup.lat) && inLng(pickup.lng) && inLat(dropoff.lat) && inLng(dropoff.lng)
+    const allValid  = inLat(pickup.lat) && inLng(pickup.lng) && inLat(dropoff.lat) && inLng(dropoff.lng)
     const sameCoords =
         allFilled &&
         Number(pickup.lat) === Number(dropoff.lat) &&
@@ -76,10 +94,14 @@ export default function AdminPage() {
             }
 
             const created = await createLoad({
-                pickup: { lat: Number(pickup.lat), lng: Number(pickup.lng) },
+                pickup:  { lat: Number(pickup.lat),  lng: Number(pickup.lng)  },
                 dropoff: { lat: Number(dropoff.lat), lng: Number(dropoff.lng) }
             })
+
             await refresh()
+
+            // optional: nudge other tabs (Driver/Admin) that might be open
+            window.dispatchEvent(new CustomEvent('loads:refresh'))                     // keeps other views fresh
 
             const shortId = created?.id ? String(created.id).slice(0, 8) : ''
             showNotice(
@@ -87,8 +109,11 @@ export default function AdminPage() {
                 'success'
             )
         } catch (e) {
-            // 👇 This will show the backend message if present (from apis.js)
-            const msg = e?.message || 'Failed to create load.'
+            // Show backend message if present (VALIDATION_ERROR, etc.)
+            const msg =
+                e instanceof ApiError
+                    ? (e.message || 'Failed to create load.')
+                    : (e?.message || 'Failed to create load.')
             setError(msg)
             showNotice(msg, 'error', 6000)
         } finally {
@@ -211,9 +236,9 @@ export default function AdminPage() {
                         onClick={submitLoad}
                         disabled={!canSubmit}
                         title={
-                            !allFilled ? 'Enter valid coordinates for all fields' :
-                                !allValid ? 'One or more coordinates are out of range' :
-                                    sameCoords ? 'Pickup and dropoff cannot be the same coordinates' :
+                            !allFilled  ? 'Enter valid coordinates for all fields' :
+                                !allValid   ? 'One or more coordinates are out of range' :
+                                    sameCoords  ? 'Pickup and dropoff cannot be the same coordinates' :
                                         'Create Load'
                         }
                     >
@@ -258,6 +283,9 @@ export default function AdminPage() {
                             <option value="COMPLETED">COMPLETED</option>
                         </select>
                         <button onClick={refresh} disabled={loading}>Refresh</button>
+                        <div style={{ marginLeft: 'auto', fontSize: 12, color: '#666' }}>
+                            {lastUpdated ? `Last updated: ${lastUpdated.toLocaleTimeString()}` : 'Not updated yet'}
+                        </div>
                     </div>
 
                     <div>

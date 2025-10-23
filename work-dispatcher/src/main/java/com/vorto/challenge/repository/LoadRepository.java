@@ -73,5 +73,35 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
         )
         """, nativeQuery = true)
     boolean existsActiveByDriverId(@Param("driverId") UUID driverId);
+
+    // 1) Lock and pick the closest candidate ID
+    @Query(value = """
+    WITH candidate AS (
+      SELECT id
+      FROM loads
+      WHERE status = 'AWAITING_DRIVER'
+        AND (:excludeId IS NULL OR id <> :excludeId)
+      ORDER BY ST_Distance(
+               pickup::geography,
+               ST_SetSRID(ST_MakePoint(:lng, :lat), 4326)::geography
+      ), id
+      LIMIT 1
+      FOR UPDATE SKIP LOCKED
+    )
+    SELECT id FROM candidate
+  """, nativeQuery = true)
+    Optional<UUID> lockClosestAvailableId(double lat, double lng, UUID excludeId);
+
+    // 2) Reserve that id (no return of row; JPA requires int/void)
+    @Modifying
+    @Query(value = """
+    UPDATE loads
+    SET status = 'RESERVED',
+        assigned_driver_id = :driverId,
+        assigned_shift_id  = :shiftId,
+        reservation_expires_at = NOW() + (INTERVAL '1 second' * :reservationSeconds)
+    WHERE id = :loadId
+  """, nativeQuery = true)
+    int reserveById(UUID loadId, UUID driverId, UUID shiftId, int reservationSeconds);
 }
 

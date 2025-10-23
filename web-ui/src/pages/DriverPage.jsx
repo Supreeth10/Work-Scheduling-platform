@@ -40,15 +40,15 @@ export default function DriverPage() {
     const assignLoopRef = useRef({ timer: null })
     const noticeTimerRef = useRef(null)
 
-    // NEW: track the "current driver id" to ignore stale responses    // <-- CHANGED
-    const currentDriverIdRef = useRef(null)                            // <-- CHANGED
-    useEffect(() => { currentDriverIdRef.current = driver?.id ?? null }, [driver?.id]) // <-- CHANGED
+    //  track the "current driver id" to ignore stale responses
+    const currentDriverIdRef = useRef(null)
+    useEffect(() => { currentDriverIdRef.current = driver?.id ?? null }, [driver?.id])
 
-    // NEW: AbortControllers to cancel in-flight requests on user switch/stopPolling   // <-- CHANGED
-    const stateAbortRef = useRef(null)                                   // <-- CHANGED
-    const assignAbortRef = useRef(null)                                  // <-- CHANGED
+    // AbortControllers to cancel in-flight requests on user switch/stopPolling
+    const stateAbortRef = useRef(null)
+    const assignAbortRef = useRef(null)
 
-    // NEW: single-flight guard for /assignment (prevents duplicate calls) // (you added earlier)
+    // single-flight guard for /assignment (prevents duplicate calls) // (you added earlier)
     const assignInFlightRef = useRef(false)
 
     const getDriverId = (d = driver) => d?.id
@@ -75,7 +75,7 @@ export default function DriverPage() {
         }
     }
 
-    // Helper: apply state only if response belongs to current driver       // <-- CHANGED
+    // Helper: apply state only if response belongs to current driver
     const applyIfCurrent = (forDriverId, fn) => {                          // <-- CHANGED
         if (currentDriverIdRef.current !== forDriverId) return               // ignore stale responses
         fn()

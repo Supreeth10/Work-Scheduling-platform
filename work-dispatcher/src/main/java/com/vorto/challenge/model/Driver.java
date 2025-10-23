@@ -30,6 +30,25 @@ public class Driver {
     @OneToMany(mappedBy = "driver", cascade = CascadeType.ALL, orphanRemoval = false)
     private List<Shift> shifts = new ArrayList<>();
 
+    @Column(name = "planned_next_load_id")
+    private UUID plannedNextLoadId;
+
+    public List<Shift> getShifts() {
+        return shifts;
+    }
+
+    public void setShifts(List<Shift> shifts) {
+        this.shifts = shifts;
+    }
+
+    public UUID getPlannedNextLoadId() {
+        return plannedNextLoadId;
+    }
+
+    public void setPlannedNextLoadId(UUID plannedNextLoadId) {
+        this.plannedNextLoadId = plannedNextLoadId;
+    }
+
     public UUID getId() {
         return id;
     }

@@ -128,7 +128,13 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
 """, nativeQuery = true)
     List<Map<String,Object>> findTopMFollowers(@Param("l1Id") UUID l1Id, @Param("m") int m);
 
-    @Query(value = "SELECT id FROM loads WHERE id = ANY(:ids) FOR UPDATE SKIP LOCKED", nativeQuery = true)
+
+    @Query(value = """
+  SELECT id
+  FROM loads
+  WHERE id IN (:ids)
+  FOR UPDATE SKIP LOCKED
+""", nativeQuery = true)
     List<UUID> lockLoads(@Param("ids") List<UUID> ids);
 
     @Modifying

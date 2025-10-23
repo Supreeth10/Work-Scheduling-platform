@@ -7,6 +7,8 @@ import com.vorto.challenge.model.Shift;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
+import com.vorto.challenge.service.DispatchOptimizerService;
+import com.vorto.challenge.service.PlanRebalancerService;
 import com.vorto.challenge.service.ShiftService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.http.HttpStatus;
@@ -18,6 +20,7 @@ import org.springframework.web.server.ResponseStatusException;
 import static com.vorto.challenge.common.JtsGeo.point;
 
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 
 
@@ -27,11 +30,15 @@ public class ShiftServiceImpl implements ShiftService {
     private final DriverRepository driverRepository;
     private final ShiftRepository shiftRepository;
     private final LoadRepository loadRepository;
+    private final PlanRebalancerService planRebalancerService;
+    private final DispatchOptimizerService dispatchOptimizerService;
 
-    public ShiftServiceImpl(DriverRepository driverRepository, ShiftRepository shiftRepository, LoadRepository loadRepository) {
+    public ShiftServiceImpl(DriverRepository driverRepository, ShiftRepository shiftRepository, LoadRepository loadRepository, PlanRebalancerService planRebalancerService, DispatchOptimizerService dispatchOptimizerService) {
         this.driverRepository = driverRepository;
         this.shiftRepository = shiftRepository;
         this.loadRepository = loadRepository;
+        this.planRebalancerService = planRebalancerService;
+        this.dispatchOptimizerService = dispatchOptimizerService;
     }
     /**
      * Starts a new shift for the given driver at the provided coordinates.
@@ -65,7 +72,11 @@ public class ShiftServiceImpl implements ShiftService {
         driverRepository.save(driver);
         shiftRepository.save(newShift);
 
-        return new DriverStartShiftDto(newShift.getId(),driver.getId(),newShift.getStartTime());
+//        // NEW: x>y rebalancing, then try to assign for this driver
+//        planRebalancerService.onNewDriverAvailable(driver.getId());  // NEW
+//        dispatchOptimizerService.runForAvailableDrivers(List.of(driver.getId())); // NEW
+
+        return new DriverStartShiftDto(newShift.getId(), driver.getId(), newShift.getStartTime());
 
     }
 

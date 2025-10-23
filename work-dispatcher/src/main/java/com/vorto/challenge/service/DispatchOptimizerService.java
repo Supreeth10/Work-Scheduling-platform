@@ -69,14 +69,14 @@ public class DispatchOptimizerService {
             double costSingle = ((Number) row.get("cost_meters")).doubleValue();
 
             // Single option
-            best = pickMin(best, new Option(driverId, l1, null, costSingle));
+            best = better(best, new Option(driverId, l1, null, costSingle));
 
             // Followers near L1.dropoff
             var followers = loadRepo.findTopMFollowers(l1, m);
             for (var f : followers) {
                 UUID l2 = (UUID) f.get("id");
                 double gap = ((Number) f.get("chain_gap_meters")).doubleValue();
-                best = pickMin(best, new Option(driverId, l1, l2, costSingle + gap));
+                best = better(best, new Option(driverId, l1, l2, costSingle + gap));
             }
         }
         return best;
@@ -88,7 +88,9 @@ public class DispatchOptimizerService {
         List<UUID> toLock = new ArrayList<>();
         toLock.add(opt.l1Id());
         if (opt.l2IdOrNull() != null) toLock.add(opt.l2IdOrNull());
-        loadRepo.lockLoads(toLock);
+        if (!toLock.isEmpty()) {
+            loadRepo.lockLoads(toLock);
+        }
 
         // Active shift is required to reserve
         var shift = shiftRepo.findByDriverIdAndEndTimeIsNull(opt.driverId()).orElse(null);
@@ -108,5 +110,26 @@ public class DispatchOptimizerService {
         if (a == null) return b;
         if (b == null) return a;
         return a.totalCostMeters() <= b.totalCostMeters() ? a : b;
+    }
+
+    private static final double EPS = 1e-6;
+
+    /** Prefer lower cost; on a tie (within EPS), prefer a CHAIN (non-null l2IdOrNull). */
+    private static Option better(Option a, Option b) {
+        if (a == null) return b;
+        if (b == null) return a;
+
+        double da = a.totalCostMeters();
+        double db = b.totalCostMeters();
+
+        if (Math.abs(da - db) > EPS) {
+            return (da < db) ? a : b;
+        }
+
+        // tie: prefer chain
+        boolean aChain = a.l2IdOrNull() != null;
+        boolean bChain = b.l2IdOrNull() != null;
+        if (aChain == bChain) return a; // stable (keep earlier)
+        return bChain ? b : a;
     }
 }

@@ -10,6 +10,8 @@ import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import com.vorto.challenge.service.AssignmentService;
+import com.vorto.challenge.service.DispatchOptimizerService;
+import com.vorto.challenge.service.PlanRebalancerService;
 import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.exception.ConstraintViolationException;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -32,11 +34,15 @@ public class AssignmentServiceImpl implements AssignmentService {
     private final DriverRepository driverRepo;
     private final ShiftRepository shiftRepo;
     private final LoadRepository loadRepo;
+    private final DispatchOptimizerService dispatchOptimizerService;
+    private final PlanRebalancerService planRebalancerService;
 
-    public AssignmentServiceImpl(DriverRepository driverRepo, ShiftRepository shiftRepo, LoadRepository loadRepo) {
+    public AssignmentServiceImpl(DriverRepository driverRepo, ShiftRepository shiftRepo, LoadRepository loadRepo, DispatchOptimizerService dispatchOptimizerService, PlanRebalancerService planRebalancerService) {
         this.driverRepo = driverRepo;
         this.shiftRepo = shiftRepo;
         this.loadRepo = loadRepo;
+        this.dispatchOptimizerService = dispatchOptimizerService;
+        this.planRebalancerService = planRebalancerService;
     }
 
     /**
@@ -69,8 +75,23 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (driver.getCurrentLocation() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Driver location unknown");
         }
-        // Reserve the closest available load from driver's current location
+
+        // --- NEW: centralize rebalancing + optimizer here ---
+        // 1) Apply x>y rule in case this driver should steal a planned-next
+        planRebalancerService.onNewDriverAvailable(driverId);
+
+        // 2) Let the optimizer try to reserve best single/chain for THIS driver
+        dispatchOptimizerService.runForAvailableDrivers(List.of(driverId));
+
+        // Re-check if optimizer reserved something just now
+        openLoad = loadRepo.findOpenByDriverId(
+                driverId, List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
+        ).orElse(null);
+        if (openLoad != null) return toAssignmentResponse(openLoad);
+
+        // Fallback: nearest-only (legacy path), still useful when no chain/follower exists
         return reserveClosestFrom(driver, activeShift, null);
+
 
     }
 
@@ -154,7 +175,33 @@ public class AssignmentServiceImpl implements AssignmentService {
             loadRepo.save(load);
 
             // Immediately try to reserve the next closest based on new location
-            LoadAssignmentResponse nextLoadAssignment = reserveClosestFrom(driver, activeShift, load.getId());
+//            LoadAssignmentResponse nextLoadAssignment = reserveClosestFrom(driver, activeShift, load.getId());
+
+            // Prefer planned next (if any)
+            LoadAssignmentResponse nextLoadAssignment = null;
+            UUID planned = driver.getPlannedNextLoadId();
+            if (planned != null) {
+                // attempt to reserve the planned load atomically
+                loadRepo.lockLoads(List.of(planned));
+                int ok = loadRepo.assignLoadIfFree(planned, driver.getId(), activeShift.getId(), RESERVATION_SECONDS);
+                if (ok > 0) {
+                    // success: clear the plan and return the reserved planned load
+                    driver.setPlannedNextLoadId(null);
+                    driverRepo.save(driver);
+                    Load reserved = loadRepo.findById(planned).orElse(null);
+                    nextLoadAssignment = (reserved != null) ? toAssignmentResponse(reserved) : null;
+                } else {
+                    // could not take planned (race) -> clear plan and fall back to nearest
+
+                    driver.setPlannedNextLoadId(null);
+                    driverRepo.save(driver);
+                }
+            }
+
+            if (nextLoadAssignment == null) {
+                // fallback: nearest from the new location (exclude just-completed load)
+                nextLoadAssignment = reserveClosestFrom(driver, activeShift, load.getId());
+            }
 
             return new CompleteStopResult(
                     toAssignmentResponse(load),  // completed load

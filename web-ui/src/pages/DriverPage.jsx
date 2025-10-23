@@ -48,7 +48,7 @@ export default function DriverPage() {
     const stateAbortRef = useRef(null)
     const assignAbortRef = useRef(null)
 
-    // single-flight guard for /assignment (prevents duplicate calls) // (you added earlier)
+    // single-flight guard for /assignment (prevents duplicate calls) //
     const assignInFlightRef = useRef(false)
 
     const getDriverId = (d = driver) => d?.id
@@ -98,16 +98,16 @@ export default function DriverPage() {
             const id = getDriverId()
             if (!id) throw new Error('No driver logged in to refresh.')
 
-            // NEW: pass AbortController signal                                      // <-- CHANGED
-            const ac = new AbortController(); stateAbortRef.current = ac            // <-- CHANGED
-            const s = await refreshState(id, { signal: ac.signal })                 // <-- CHANGED
+            // pass AbortController signal
+            const ac = new AbortController(); stateAbortRef.current = ac
+            const s = await refreshState(id, { signal: ac.signal })
 
-            // Guard proactive assignment with single-flight + "still current user"  // <-- CHANGED
+            // Guard proactive assignment with single-flight + "still current user"
             if (s.driver?.onShift && !s.load && !assignInFlightRef.current && currentDriverIdRef.current === id) {
                 assignInFlightRef.current = true
                 try {
                     const a = await getCurrentAssignment(id, { signal: ac.signal })
-                    applyIfCurrent(id, () => {                                          // <-- CHANGED
+                    applyIfCurrent(id, () => {
                         if (a) {
                             setState(prev => ({ ...(prev || s), load: a }))
                             showNotice('A load has been reserved for you.', 'success')
@@ -123,7 +123,7 @@ export default function DriverPage() {
 
             console.log('[Driver] State refreshed at', new Date().toISOString())
         } catch (e) {
-            if (e.name === 'AbortError') return                                   // <-- CHANGED
+            if (e.name === 'AbortError') return
             setError(e.message || 'Failed to refresh state')
             console.error('[Driver] Refresh failed:', e)
         } finally {
@@ -167,7 +167,7 @@ export default function DriverPage() {
                 if (!id) return
                 console.log('[poll] /state tick @', new Date().toISOString())
 
-                // NEW: create a fresh AbortController per tick                        // <-- CHANGED
+                // create a fresh AbortController per tick                        // <-- CHANGED
                 const ac = new AbortController(); stateAbortRef.current = ac          // <-- CHANGED
                 await refreshState(id, { signal: ac.signal })                          // <-- CHANGED
             } catch (e) {
@@ -186,11 +186,11 @@ export default function DriverPage() {
                 console.log('[poll] /state (pre-assign) tick @', new Date().toISOString())
 
                 // Always get fresh state (authoritative)
-                const ac = new AbortController(); assignAbortRef.current = ac         // <-- CHANGED
-                const s = await getDriverState(id, { signal: ac.signal })             // <-- CHANGED
+                const ac = new AbortController(); assignAbortRef.current = ac
+                const s = await getDriverState(id, { signal: ac.signal })
                 const normalized = { ...s, load: s.load ?? null }
 
-                applyIfCurrent(id, () => {                                            // <-- CHANGED
+                applyIfCurrent(id, () => {
                     setState(normalized)
                     bumpLastUpdated()
                 })
@@ -198,12 +198,12 @@ export default function DriverPage() {
                 // Only try reserving when on shift & currently unassigned
                 if (normalized.driver?.onShift && !normalized.load
                     && !assignInFlightRef.current
-                    && currentDriverIdRef.current === id) {                           // <-- CHANGED
+                    && currentDriverIdRef.current === id) {
                     console.log('[poll] /assignment attempt @', new Date().toISOString())
                     assignInFlightRef.current = true
                     try {
-                        const a = await getCurrentAssignment(id, { signal: ac.signal })   // <-- CHANGED
-                        applyIfCurrent(id, () => {                                        // <-- CHANGED
+                        const a = await getCurrentAssignment(id, { signal: ac.signal })
+                        applyIfCurrent(id, () => {
                             if (a) {
                                 setState(prev => ({ ...(prev || normalized), load: a }))
                                 showNotice('A load has been reserved for you.', 'success')

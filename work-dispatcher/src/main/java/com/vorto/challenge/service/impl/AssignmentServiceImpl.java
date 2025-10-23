@@ -11,6 +11,8 @@ import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import com.vorto.challenge.service.AssignmentService;
 import jakarta.persistence.EntityNotFoundException;
+import org.hibernate.exception.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -255,11 +257,12 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (activeShift == null) return; // race: driver went off-shift
 
         // Reserve this specific load for the chosen driver
-        load.setAssignedDriver(driver);
-        load.setAssignedShift(activeShift);
-        load.setStatus(Load.Status.RESERVED);
-        load.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
-        loadRepo.save(load);
+        try {
+            int updated = loadRepo.reserveById(loadId, driver.getId(), activeShift.getId(), RESERVATION_SECONDS);
+            // If updated == 0, someone else reserved or state changed; no-op.
+        } catch (DataIntegrityViolationException ignored) {
+            // Another request gave this driver an open load concurrently—ignore.
+        }
     }
 
 
@@ -270,29 +273,40 @@ public class AssignmentServiceImpl implements AssignmentService {
      * DTO if reserved, or null if none available.
      */
     private LoadAssignmentResponse reserveClosestFrom(Driver driver, Shift activeShift, UUID excludeId) {
-        // Clean up pool first
         loadRepo.releaseExpiredReservations(Instant.now());
 
         if (driver.getCurrentLocation() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Driver location unknown; cannot assign");
         }
 
-        //extract driver location
-        final double lat = driver.getCurrentLocation().getY(); // latitude
-        final double lng = driver.getCurrentLocation().getX(); // longitude
+        final double lat = driver.getCurrentLocation().getY();
+        final double lng = driver.getCurrentLocation().getX();
 
-        // look for closed available load to assign to the driver
-        Load candidateLoad = loadRepo.pickClosestAvailableForReservation(lat, lng, excludeId).orElse(null);
-        if (candidateLoad == null) return null;
+        // 1) Lock the nearest candidate (respect excludeId)
+        UUID candId = loadRepo.lockClosestAvailableId(lat, lng, excludeId).orElse(null);
+        if (candId == null) return null;
 
-        candidateLoad.setAssignedDriver(driver);
-        candidateLoad.setAssignedShift(activeShift);
-        candidateLoad.setStatus(Load.Status.RESERVED);
-        candidateLoad.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
-        loadRepo.save(candidateLoad);
+        // 2) Reserve it atomically
+        try {
+            int updated = loadRepo.reserveById(candId, driver.getId(), activeShift.getId(), RESERVATION_SECONDS);
+            if (updated == 0) {
+                // Lost a race in the tiny window — just report no assignment
+                return null;
+            }
+        } catch (DataIntegrityViolationException | ConstraintViolationException e) {
+            // Unique index "one open per driver" may have tripped; return the already-open load if present
+            Load stillOpen = loadRepo.findOpenByDriverId(
+                    driver.getId(), List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
+            ).orElse(null);
+            if (stillOpen != null) return toAssignmentResponse(stillOpen);
+            throw e;
+        }
 
-        return toAssignmentResponse(candidateLoad);
+        // 3) Load and return DTO
+        Load reserved = loadRepo.findById(candId).orElseThrow();
+        return toAssignmentResponse(reserved);
     }
+
 
     /**
      * Internal: returns the load to AWAITING_DRIVER by clearing assignment and reservation metadata.

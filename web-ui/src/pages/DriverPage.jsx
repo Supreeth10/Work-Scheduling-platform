@@ -35,10 +35,21 @@ export default function DriverPage() {
 
     const navigate = useNavigate()
 
-    // timers + abort controllers for polling loops
+    // timers
     const stateLoopRef = useRef({ timer: null })
     const assignLoopRef = useRef({ timer: null })
     const noticeTimerRef = useRef(null)
+
+    // NEW: track the "current driver id" to ignore stale responses    // <-- CHANGED
+    const currentDriverIdRef = useRef(null)                            // <-- CHANGED
+    useEffect(() => { currentDriverIdRef.current = driver?.id ?? null }, [driver?.id]) // <-- CHANGED
+
+    // NEW: AbortControllers to cancel in-flight requests on user switch/stopPolling   // <-- CHANGED
+    const stateAbortRef = useRef(null)                                   // <-- CHANGED
+    const assignAbortRef = useRef(null)                                  // <-- CHANGED
+
+    // NEW: single-flight guard for /assignment (prevents duplicate calls) // (you added earlier)
+    const assignInFlightRef = useRef(false)
 
     const getDriverId = (d = driver) => d?.id
 
@@ -64,12 +75,20 @@ export default function DriverPage() {
         }
     }
 
+    // Helper: apply state only if response belongs to current driver       // <-- CHANGED
+    const applyIfCurrent = (forDriverId, fn) => {                          // <-- CHANGED
+        if (currentDriverIdRef.current !== forDriverId) return               // ignore stale responses
+        fn()
+    }
+
     // Normalize s.load => explicit null here so the rest of the UI can rely on it.
-    const refreshState = async (driverId) => {
-        const s = await getDriverState(driverId)
+    const refreshState = async (driverId, opts) => {                       // <-- CHANGED (pass signal)
+        const s = await getDriverState(driverId, opts)
         const normalized = { ...s, load: s.load ?? null }
-        setState(normalized)
-        bumpLastUpdated() // <- update "Last updated" on every state poll
+        applyIfCurrent(driverId, () => {                                     // <-- CHANGED
+            setState(normalized)
+            bumpLastUpdated()
+        })
         return normalized
     }
 
@@ -79,22 +98,32 @@ export default function DriverPage() {
             const id = getDriverId()
             if (!id) throw new Error('No driver logged in to refresh.')
 
-            const s = await refreshState(id)
+            // NEW: pass AbortController signal                                      // <-- CHANGED
+            const ac = new AbortController(); stateAbortRef.current = ac            // <-- CHANGED
+            const s = await refreshState(id, { signal: ac.signal })                 // <-- CHANGED
 
-            // If on shift but no load, proactively try to reserve a new one
-            if (s.driver?.onShift && !s.load) {
-                const a = await getCurrentAssignment(id)
-                if (a) {
-                    setState(prev => ({ ...(prev || s), load: a }))
-                    showNotice('A load has been reserved for you.', 'success')
-                    bumpLastUpdated()
-                } else {
-                    showNotice('No assignment yet. We’ll keep checking…', 'info')
+            // Guard proactive assignment with single-flight + "still current user"  // <-- CHANGED
+            if (s.driver?.onShift && !s.load && !assignInFlightRef.current && currentDriverIdRef.current === id) {
+                assignInFlightRef.current = true
+                try {
+                    const a = await getCurrentAssignment(id, { signal: ac.signal })
+                    applyIfCurrent(id, () => {                                          // <-- CHANGED
+                        if (a) {
+                            setState(prev => ({ ...(prev || s), load: a }))
+                            showNotice('A load has been reserved for you.', 'success')
+                            bumpLastUpdated()
+                        } else {
+                            showNotice('No assignment yet. We’ll keep checking…', 'info')
+                        }
+                    })
+                } finally {
+                    assignInFlightRef.current = false
                 }
             }
 
             console.log('[Driver] State refreshed at', new Date().toISOString())
         } catch (e) {
+            if (e.name === 'AbortError') return                                   // <-- CHANGED
             setError(e.message || 'Failed to refresh state')
             console.error('[Driver] Refresh failed:', e)
         } finally {
@@ -129,7 +158,7 @@ export default function DriverPage() {
 
     // -------- Polling (self-scheduling setTimeout loops) --------
     const startPolling = () => {
-        stopPolling(); // safety
+        stopPolling(); // safety (also aborts in-flight)                         // <-- CHANGED
 
         // STATE LOOP
         const stateTick = async () => {
@@ -137,7 +166,10 @@ export default function DriverPage() {
                 const id = getDriverId()
                 if (!id) return
                 console.log('[poll] /state tick @', new Date().toISOString())
-                await refreshState(id) // refreshState bumps lastUpdated
+
+                // NEW: create a fresh AbortController per tick                        // <-- CHANGED
+                const ac = new AbortController(); stateAbortRef.current = ac          // <-- CHANGED
+                await refreshState(id, { signal: ac.signal })                          // <-- CHANGED
             } catch (e) {
                 if (e.name !== 'AbortError') console.warn('[Driver] state poll failed:', e)
             } finally {
@@ -152,20 +184,34 @@ export default function DriverPage() {
                 const id = getDriverId()
                 if (!id) return
                 console.log('[poll] /state (pre-assign) tick @', new Date().toISOString())
-                // 1) Always get fresh state (authoritative), update UI timestamp
-                const s = await getDriverState(id)
-                const normalized = { ...s, load: s.load ?? null }
-                setState(normalized)
-                bumpLastUpdated()
 
-                // 2) Only try reserving when on shift & currently unassigned
-                if (normalized.driver?.onShift && !normalized.load) {
+                // Always get fresh state (authoritative)
+                const ac = new AbortController(); assignAbortRef.current = ac         // <-- CHANGED
+                const s = await getDriverState(id, { signal: ac.signal })             // <-- CHANGED
+                const normalized = { ...s, load: s.load ?? null }
+
+                applyIfCurrent(id, () => {                                            // <-- CHANGED
+                    setState(normalized)
+                    bumpLastUpdated()
+                })
+
+                // Only try reserving when on shift & currently unassigned
+                if (normalized.driver?.onShift && !normalized.load
+                    && !assignInFlightRef.current
+                    && currentDriverIdRef.current === id) {                           // <-- CHANGED
                     console.log('[poll] /assignment attempt @', new Date().toISOString())
-                    const a = await getCurrentAssignment(id)
-                    if (a) {
-                        setState(prev => ({ ...(prev || normalized), load: a }))
-                        showNotice('A load has been reserved for you.', 'success')
-                        bumpLastUpdated()
+                    assignInFlightRef.current = true
+                    try {
+                        const a = await getCurrentAssignment(id, { signal: ac.signal })   // <-- CHANGED
+                        applyIfCurrent(id, () => {                                        // <-- CHANGED
+                            if (a) {
+                                setState(prev => ({ ...(prev || normalized), load: a }))
+                                showNotice('A load has been reserved for you.', 'success')
+                                bumpLastUpdated()
+                            }
+                        })
+                    } finally {
+                        assignInFlightRef.current = false
                     }
                 }
             } catch (e) {
@@ -184,15 +230,22 @@ export default function DriverPage() {
         stateLoopRef.current = { timer: null }
         assignLoopRef.current = { timer: null }
         noticeTimerRef.current = null
+
+        // NEW: abort any in-flight fetches so their responses can't set stale state  // <-- CHANGED
+        try { stateAbortRef.current?.abort() } catch {}                              // <-- CHANGED
+        try { assignAbortRef.current?.abort() } catch {}                             // <-- CHANGED
+        stateAbortRef.current = null
+        assignAbortRef.current = null
+        assignInFlightRef.current = false
     }
 
     useEffect(() => () => stopPolling(), [])
-    // If a driver appears (e.g., after login, or if you restore a session later), start polling.
-    // If driver goes away (logout), stop polling.
     useEffect(() => {
         if (driver?.id) {
             startPolling();
             return () => stopPolling();
+        } else {
+            stopPolling(); // ensure old in-flight calls are aborted when driver clears // <-- CHANGED
         }
     }, [driver?.id]);
 
@@ -224,42 +277,27 @@ export default function DriverPage() {
         try {
             setLoading(true); setError('')
 
-            // Validate blanks before parse
             const latStr = String(lat).trim()
             const lngStr = String(lng).trim()
             if (latStr === '' || lngStr === '') throw new Error('Please provide valid start coordinates.')
 
             const latNum = parseFloat(latStr)
             const lngNum = parseFloat(lngStr)
-            if (Number.isNaN(latNum) || Number.isNaN(lngNum)) {
-                throw new Error('Please provide valid start coordinates.')
-            }
+            if (Number.isNaN(latNum) || Number.isNaN(lngNum)) throw new Error('Please provide valid start coordinates.')
             if (latNum < -90 || latNum > 90 || lngNum < -180 || lngNum > 180) {
                 throw new Error('lat must be between -90 and 90, lng between -180 and 180.')
             }
 
             const id = getDriverId()
             await startShift(id, { lat: latNum, lng: lngNum })
-            // Ensure polling is running after a shift starts (idempotent—startPolling() clears/restarts)
-            startPolling();
-            const a = await getCurrentAssignment(id)
-            if (a) {
-                setState(prev => ({ ...(prev || {}), driver: { ...(prev?.driver || {}), onShift: true }, load: a }))
-                bumpLastUpdated()
-                showNotice('Shift started. A load was reserved for you.', 'success')
-            } else {
-                await refreshState(id)
-                showNotice('Shift started. Waiting for a load…', 'info')
-            }
+            startPolling();                 // idempotent—clears/restarts loops
+            await refreshState(id)          // show latest state
+            showNotice('Shift started. Waiting for a load…', 'info')
         } catch (e) {
             if (e instanceof ApiError) {
-                if (e.is('SHIFT_ALREADY_ACTIVE')) {
-                    setError('You already have an active shift.')
-                } else if (e.is('VALIDATION_ERROR')) {
-                    setError(e.message || 'Please check your coordinates and try again.')
-                } else {
-                    setError(e.message || 'Start shift failed')
-                }
+                if (e.is('SHIFT_ALREADY_ACTIVE')) setError('You already have an active shift.')
+                else if (e.is('VALIDATION_ERROR')) setError(e.message || 'Please check your coordinates and try again.')
+                else setError(e.message || 'Start shift failed')
             } else {
                 setError(e.message || 'Network error while starting shift')
             }
@@ -277,9 +315,7 @@ export default function DriverPage() {
             const current = state?.load
             if (!current?.id) throw new Error('No active load to complete.')
 
-            // Decide message based on what we were about to complete
             const prevStop = current.currentStop // 'PICKUP' or 'DROPOFF'
-
             const { completed, nextAssignment } = await completeCurrentStop(id, current.id)
 
             // Refresh authoritative state
@@ -287,11 +323,12 @@ export default function DriverPage() {
 
             // If server already included a next assignment, show it right away
             if (nextAssignment) {
-                setState(prev => ({ ...(prev || s), load: nextAssignment }))
-                bumpLastUpdated()
+                applyIfCurrent(id, () => {                                  // <-- CHANGED
+                    setState(prev => ({ ...(prev || s), load: nextAssignment }))
+                    bumpLastUpdated()
+                })
             }
 
-            // Message based on the stop we *just completed* (prevStop)
             if (prevStop === 'PICKUP') {
                 showNotice('Pickup complete. Proceed to the drop-off.', 'success')
             } else if (prevStop === 'DROPOFF') {
@@ -303,32 +340,36 @@ export default function DriverPage() {
             }
         } catch (e) {
             if (e instanceof ApiError && e.is('RESERVATION_EXPIRED')) {
-                // Clear stale load immediately
-                setState(prev => prev ? { ...prev, load: null } : prev)
+                applyIfCurrent(getDriverId(), () => {                       // <-- CHANGED
+                    setState(prev => prev ? { ...prev, load: null } : prev)
+                })
                 setError(e.message || 'Reservation expired. Checking for a new assignment…')
 
                 try {
                     const id = getDriverId()
-
-                    // Refresh authoritative state (should reflect no load)
                     const s = await refreshState(id)
 
-                    // Try to reserve a fresh assignment if still on shift
-                    if (s.driver?.onShift) {
-                        const a = await getCurrentAssignment(id)
-                        if (a) {
-                            setState(prev => ({ ...(prev || s), load: a }))
-                            showNotice('A new load has been reserved for you.', 'success')
-                            bumpLastUpdated()
-                        } else {
-                            showNotice('No assignment yet. We’ll keep checking…', 'info')
+                    if (s.driver?.onShift && !assignInFlightRef.current && currentDriverIdRef.current === id) { // <-- CHANGED
+                        assignInFlightRef.current = true
+                        try {
+                            const a = await getCurrentAssignment(id)
+                            applyIfCurrent(id, () => {                             // <-- CHANGED
+                                if (a) {
+                                    setState(prev => ({ ...(prev || s), load: a }))
+                                    showNotice('A new load has been reserved for you.', 'success')
+                                    bumpLastUpdated()
+                                } else {
+                                    showNotice('No assignment yet. We’ll keep checking…', 'info')
+                                }
+                            })
+                        } finally {
+                            assignInFlightRef.current = false
                         }
                     }
 
-                    // Nudge Admin page (if open) to refresh immediately
-                    window.dispatchEvent(new CustomEvent('loads:refresh'))
+                    // REMOVED: window.dispatchEvent('loads:refresh') — polling is enough  // <-- CHANGED
                 } catch {
-                    // polling will keep things in sync
+                    /* noop; polling will keep things in sync */
                 }
             } else if (e instanceof ApiError && e.is('LOAD_STATE_CONFLICT')) {
                 setError(e.message || 'This load changed state. Refreshing…')
@@ -352,23 +393,16 @@ export default function DriverPage() {
             const loadId = load?.id
             await rejectCurrentLoad(id, loadId)
 
-            // Show the message first (it will remain visible after we "log out")
             showNotice('Load rejected and your shift has been ended.', 'info')
 
-            // Nudge Admin page (if open) to refresh
-            window.dispatchEvent(new CustomEvent('loads:refresh'))
+            // REMOVED: window.dispatchEvent('loads:refresh') — polling is enough     // <-- CHANGED
 
-            // Now take them back to the login screen
             logoutToLogin()
         } catch (e) {
             if (e instanceof ApiError) {
-                if (e.is('ACCESS_DENIED')) {
-                    setError('This load is not assigned to you.')
-                } else if (e.is('LOAD_STATE_CONFLICT')) {
-                    setError('This load cannot be rejected in its current state.')
-                } else {
-                    setError(e.message || 'Reject failed')
-                }
+                if (e.is('ACCESS_DENIED')) setError('This load is not assigned to you.')
+                else if (e.is('LOAD_STATE_CONFLICT')) setError('This load cannot be rejected in its current state.')
+                else setError(e.message || 'Reject failed')
             } else {
                 setError('Network error while rejecting load')
             }
@@ -385,17 +419,12 @@ export default function DriverPage() {
             await refreshState(id)
             showNotice('Shift ended.', 'info')
 
-            // Nudge Admin to refresh as well
-            window.dispatchEvent(new CustomEvent('loads:refresh'))
+            // REMOVED: window.dispatchEvent('loads:refresh') — polling is enough     // <-- CHANGED
         } catch (e) {
             if (e instanceof ApiError) {
-                if (e.is('ACTIVE_LOAD_PRESENT')) {
-                    setError('You cannot end your shift while you have an active load.')
-                } else if (e.is('SHIFT_NOT_ACTIVE')) {
-                    setError('Your shift is not active.')
-                } else {
-                    setError(e.message || 'End shift failed')
-                }
+                if (e.is('ACTIVE_LOAD_PRESENT')) setError('You cannot end your shift while you have an active load.')
+                else if (e.is('SHIFT_NOT_ACTIVE')) setError('Your shift is not active.')
+                else setError(e.message || 'End shift failed')
             } else {
                 setError('Network error while ending shift')
             }
@@ -405,35 +434,37 @@ export default function DriverPage() {
     }
 
     const doGetAssignment = async () => {
+        if (assignInFlightRef.current) return
+        assignInFlightRef.current = true
         try {
             setLoading(true); setError('')
             const id = getDriverId()
             const a = await getCurrentAssignment(id)
-            if (a) {
-                setState(prev => ({ ...(prev || {}), load: a }))
-                showNotice('A load was reserved for you.', 'success')
+            applyIfCurrent(id, () => {                                     // <-- CHANGED
+                if (a) {
+                    setState(prev => ({ ...(prev || {}), load: a }))
+                    showNotice('A load was reserved for you.', 'success')
+                    bumpLastUpdated()
+                } else {
+                    showNotice('No assignment yet. We’ll keep checking…', 'info')
+                }
                 bumpLastUpdated()
-            } else {
-                showNotice('No assignment yet. We’ll keep checking…', 'info')
-            }
-            bumpLastUpdated()
+            })
         } catch (e) {
             showApiError(e, 'Get assignment failed')
         } finally {
+            assignInFlightRef.current = false
             setLoading(false)
         }
     }
 
     const logoutToLogin = () => {
-        // stop timers
         stopPolling()
-        // clear driver/session-ish state so the login form shows
         setDriver(null)
         setState(null)
         setLat('')
         setLng('')
         setLastUpdated(null)
-        // keep the notice so the banner remains visible
         navigate('/driver', { replace: true })
     }
 

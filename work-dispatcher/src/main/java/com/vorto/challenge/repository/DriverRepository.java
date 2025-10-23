@@ -2,10 +2,13 @@ package com.vorto.challenge.repository;
 
 import com.vorto.challenge.model.Driver;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -39,4 +42,39 @@ public interface DriverRepository extends JpaRepository<Driver, UUID> {
     """, nativeQuery = true)
     Optional<Driver> findClosestAvailableDriver(@Param("lat") double lat,
                                                 @Param("lng") double lng);
+
+    @Query(value = """
+  SELECT d.id
+  FROM drivers d
+  WHERE d.on_shift = TRUE
+    AND d.current_location IS NOT NULL
+    AND EXISTS (SELECT 1 FROM shifts s WHERE s.driver_id = d.id AND s.end_time IS NULL)
+    AND NOT EXISTS (
+      SELECT 1 FROM loads l
+       WHERE l.assigned_driver_id = d.id
+         AND l.status IN ('RESERVED','IN_PROGRESS')
+    )
+""", nativeQuery = true)
+    List<UUID> findAvailableDriverIds();
+
+    @Modifying
+    @Query(value = """
+  UPDATE drivers SET planned_next_load_id = :plannedId
+  WHERE id = :driverId
+""", nativeQuery = true)
+    int setPlannedNext(@Param("driverId") UUID driverId, @Param("plannedId") UUID plannedId);
+
+    @Modifying
+    @Query(value = """
+  UPDATE drivers SET planned_next_load_id = NULL
+  WHERE id = :driverId AND planned_next_load_id = :plannedId
+""", nativeQuery = true)
+    int clearPlannedNext(@Param("driverId") UUID driverId, @Param("plannedId") UUID plannedId);
+
+    @Query(value = """
+  SELECT d.id AS driver_id, d.planned_next_load_id AS planned
+  FROM drivers d
+  WHERE d.planned_next_load_id IS NOT NULL
+""", nativeQuery = true)
+    List<Map<String, Object>> findAllWithPlanned();
 }

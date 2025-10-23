@@ -9,6 +9,7 @@ import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -103,5 +104,47 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
     WHERE id = :loadId
   """, nativeQuery = true)
     int reserveById(UUID loadId, UUID driverId, UUID shiftId, int reservationSeconds);
+
+    @Query(value = """
+  SELECT l.id AS id,
+         ST_Distance(d.current_location::geography, l.pickup::geography) AS cost_meters
+  FROM loads l
+  JOIN drivers d ON d.id = :driverId
+  WHERE l.status = 'AWAITING_DRIVER' AND l.assigned_driver_id IS NULL
+  ORDER BY d.current_location <-> l.pickup
+  LIMIT :k
+""", nativeQuery = true)
+    List<Map<String,Object>> findTopKNearestLoadsToDriver(@Param("driverId") UUID driverId,
+                                                          @Param("k") int k);
+
+    @Query(value = """
+  WITH l1 AS (SELECT dropoff FROM loads WHERE id = :l1Id)
+  SELECT l2.id AS id,
+         ST_Distance(l1.dropoff::geography, l2.pickup::geography) AS chain_gap_meters
+  FROM loads l2, l1
+  WHERE l2.status = 'AWAITING_DRIVER' AND l2.assigned_driver_id IS NULL AND l2.id <> :l1Id
+  ORDER BY l1.dropoff <-> l2.pickup
+  LIMIT :m
+""", nativeQuery = true)
+    List<Map<String,Object>> findTopMFollowers(@Param("l1Id") UUID l1Id, @Param("m") int m);
+
+    @Query(value = "SELECT id FROM loads WHERE id = ANY(:ids) FOR UPDATE SKIP LOCKED", nativeQuery = true)
+    List<UUID> lockLoads(@Param("ids") List<UUID> ids);
+
+    @Modifying
+    @Query(value = """
+  UPDATE loads
+     SET assigned_driver_id = :driverId,
+         status = 'RESERVED',
+         assigned_shift_id = :shiftId,
+         reservation_expires_at = NOW() + (INTERVAL '1 second' * :reservationSeconds)
+   WHERE id = :loadId
+     AND status = 'AWAITING_DRIVER'
+     AND assigned_driver_id IS NULL
+""", nativeQuery = true)
+    int assignLoadIfFree(@Param("loadId") UUID loadId,
+                         @Param("driverId") UUID driverId,
+                         @Param("shiftId") UUID shiftId,
+                         @Param("reservationSeconds") int reservationSeconds);
 }
 

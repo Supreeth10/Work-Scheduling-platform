@@ -1,11 +1,20 @@
 package com.vorto.challenge.optimization;
 
 import com.google.ortools.Loader;
+import com.google.ortools.linearsolver.MPConstraint;
+import com.google.ortools.linearsolver.MPObjective;
+import com.google.ortools.linearsolver.MPSolver;
+import com.google.ortools.linearsolver.MPVariable;
+import com.vorto.challenge.model.Load;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.UUID;
+import java.util.stream.Collectors;
 
 /**
  * Service that optimizes load assignments to drivers using Mixed Integer Programming (MIP).
@@ -82,12 +91,200 @@ public class OptimizationService {
         
         log.debug("Generated {} sequences for MIP solver", sequences.size());
         
-        // 2. Build and solve MIP model (to be implemented in next task)
-        // TODO: buildAndSolveMIP(sequences, context)
+        // 2. Build and solve MIP model
+        AssignmentPlan plan = buildAndSolveMIP(sequences, context);
         
-        // Temporary: Return empty plan until MIP model is implemented
-        log.warn("MIP model building not implemented yet - returning empty plan");
-        return AssignmentPlan.builder().build();
+        log.info("Optimization complete: {} drivers assigned, {} loads assigned, {:.2f} mi total",
+                plan.getAssignedDriverCount(), plan.getAssignedLoadCount(), plan.getTotalDeadheadMiles());
+        
+        return plan;
+    }
+    
+    /**
+     * Build the MIP model and solve it using OR-Tools CBC solver.
+     * Uses branch-and-bound with linear relaxation - NOT brute force enumeration.
+     */
+    private AssignmentPlan buildAndSolveMIP(
+            List<SequenceGenerator.DriverLoadSequence> sequences,
+            OptimizationContext context) {
+        
+        // Create the MIP solver (CBC = Coin-or Branch and Cut)
+        MPSolver solver = MPSolver.createSolver("CBC_MIXED_INTEGER_PROGRAMMING");
+        if (solver == null) {
+            log.error("Could not create CBC solver");
+            throw new RuntimeException("Failed to create MIP solver");
+        }
+        
+        // Set time limit (500ms as per requirements)
+        solver.setTimeLimit(SOLVER_TIME_LIMIT_MS);
+        
+        log.debug("Building MIP model with {} sequences", sequences.size());
+        
+        // Create decision variables (one binary variable per sequence)
+        Map<SequenceGenerator.DriverLoadSequence, MPVariable> variables = new HashMap<>();
+        for (SequenceGenerator.DriverLoadSequence seq : sequences) {
+            MPVariable var = solver.makeBoolVar("y_" + seq.getId());
+            variables.put(seq, var);
+        }
+        
+        log.debug("Created {} binary decision variables", variables.size());
+        
+        // Add constraints
+        addDriverConstraints(solver, sequences, variables);
+        addLoadConstraints(solver, sequences, variables, context);
+        
+        // Set objective: minimize total deadhead
+        setObjective(solver, sequences, variables);
+        
+        // Solve
+        log.debug("Solving MIP model using branch-and-bound...");
+        long startTime = System.currentTimeMillis();
+        MPSolver.ResultStatus status = solver.solve();
+        long solveTime = System.currentTimeMillis() - startTime;
+        
+        log.info("MIP solver finished in {} ms with status: {}", solveTime, status);
+        
+        // Extract solution
+        if (status == MPSolver.ResultStatus.OPTIMAL || status == MPSolver.ResultStatus.FEASIBLE) {
+            return extractSolution(sequences, variables, status);
+        } else {
+            log.warn("MIP solver failed with status: {}. Returning empty plan.", status);
+            return AssignmentPlan.builder().build();
+        }
+    }
+    
+    /**
+     * Constraint: Each driver can be assigned to at most one sequence.
+     * 
+     * Mathematical formulation:
+     *   For each driver D:
+     *     Σ (y[s] for all sequences s where driver(s) = D) ≤ 1
+     * 
+     * Example: Driver D1 has sequences [idle, D1→L1, D1→L2, D1→(L1,L2)]
+     *   y[idle] + y[D1→L1] + y[D1→L2] + y[D1→(L1,L2)] ≤ 1
+     */
+    private void addDriverConstraints(
+            MPSolver solver,
+            List<SequenceGenerator.DriverLoadSequence> sequences,
+            Map<SequenceGenerator.DriverLoadSequence, MPVariable> variables) {
+        
+        // Group sequences by driver
+        Map<UUID, List<SequenceGenerator.DriverLoadSequence>> sequencesByDriver = sequences.stream()
+                .collect(Collectors.groupingBy(seq -> seq.getDriver().getId()));
+        
+        for (Map.Entry<UUID, List<SequenceGenerator.DriverLoadSequence>> entry : sequencesByDriver.entrySet()) {
+            // Create constraint: sum ≤ 1 (driver picks at most one sequence)
+            MPConstraint constraint = solver.makeConstraint(0, 1, "driver_" + entry.getKey());
+            
+            for (SequenceGenerator.DriverLoadSequence seq : entry.getValue()) {
+                constraint.setCoefficient(variables.get(seq), 1);
+            }
+        }
+        
+        log.debug("Added {} driver constraints", sequencesByDriver.size());
+    }
+    
+    /**
+     * Constraint: Each assignable load must appear in exactly one selected sequence.
+     * 
+     * Mathematical formulation:
+     *   For each load L:
+     *     Σ (y[s] for all sequences s where L ∈ loads(s)) = 1
+     * 
+     * Example: Load L1 appears in [D1→L1, D2→L1, D1→(L1,L2), D2→(L1,L3)]
+     *   y[D1→L1] + y[D2→L1] + y[D1→(L1,L2)] + y[D2→(L1,L3)] = 1
+     * 
+     * Note: IN_PROGRESS loads are excluded (they're in context.protectedLoads, not assignableLoads)
+     */
+    private void addLoadConstraints(
+            MPSolver solver,
+            List<SequenceGenerator.DriverLoadSequence> sequences,
+            Map<SequenceGenerator.DriverLoadSequence, MPVariable> variables,
+            OptimizationContext context) {
+        
+        int constraintCount = 0;
+        
+        // For each assignable load, ensure it appears in exactly one selected sequence
+        for (Load load : context.getAssignableLoads()) {
+            MPConstraint constraint = solver.makeConstraint(1, 1, "load_" + load.getId());
+            
+            for (SequenceGenerator.DriverLoadSequence seq : sequences) {
+                if (seq.containsLoad(load)) {
+                    constraint.setCoefficient(variables.get(seq), 1);
+                }
+            }
+            
+            constraintCount++;
+        }
+        
+        log.debug("Added {} load constraints", constraintCount);
+    }
+    
+    /**
+     * Set the objective function: minimize total deadhead miles.
+     * 
+     * Mathematical formulation:
+     *   Minimize: Σ (deadheadMiles[s] × y[s]) for all sequences s
+     * 
+     * Example:
+     *   Minimize: 10.5×y[D1→L1] + 15.2×y[D1→L2] + 8.3×y[D2→L1] + ...
+     */
+    private void setObjective(
+            MPSolver solver,
+            List<SequenceGenerator.DriverLoadSequence> sequences,
+            Map<SequenceGenerator.DriverLoadSequence, MPVariable> variables) {
+        
+        MPObjective objective = solver.objective();
+        
+        for (SequenceGenerator.DriverLoadSequence seq : sequences) {
+            objective.setCoefficient(variables.get(seq), seq.getDeadheadMiles());
+        }
+        
+        objective.setMinimization();
+        log.debug("Set objective to minimize total deadhead miles");
+    }
+    
+    /**
+     * Extract the solution from the solved MIP model.
+     * Parses which sequences were selected (variable value > 0.5) and builds AssignmentPlan.
+     */
+    private AssignmentPlan extractSolution(
+            List<SequenceGenerator.DriverLoadSequence> sequences,
+            Map<SequenceGenerator.DriverLoadSequence, MPVariable> variables,
+            MPSolver.ResultStatus status) {
+        
+        AssignmentPlan.Builder builder = AssignmentPlan.builder();
+        
+        for (SequenceGenerator.DriverLoadSequence seq : sequences) {
+            MPVariable var = variables.get(seq);
+            
+            // Check if this sequence is selected (value close to 1)
+            if (var.solutionValue() > 0.5) {
+                // Skip empty sequences in the result (don't report idle drivers)
+                if (!seq.isEmpty()) {
+                    LoadSequence loadSeq = seq.toLoadSequence();
+                    builder.addAssignment(loadSeq);
+                    
+                    // Create assignment actions for each load in sequence
+                    for (Load load : seq.getLoads()) {
+                        builder.addChange(ReassignmentAction.assign(
+                                seq.getDriver().getId(),
+                                load.getId()
+                        ));
+                    }
+                    
+                    log.debug("Selected: {}", seq);
+                }
+            }
+        }
+        
+        AssignmentPlan plan = builder.build();
+        
+        if (status == MPSolver.ResultStatus.FEASIBLE) {
+            log.warn("MIP found feasible (not proven optimal) solution due to time limit");
+        }
+        
+        return plan;
     }
 }
 

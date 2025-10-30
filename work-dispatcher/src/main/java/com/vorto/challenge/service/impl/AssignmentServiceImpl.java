@@ -54,19 +54,25 @@ public class AssignmentServiceImpl implements AssignmentService {
      * This is the single algorithm that handles all assignment logic.
      * Replaces duplicated logic in getOrReserveLoad, tryAssignNewlyCreatedLoad, etc.
      * 
-     * Note: Does NOT use @Transactional to avoid rollback issues when called from other transactions.
-     * Transaction handling is done within applyAssignmentPlan() for the database updates only.
+     * Uses REQUIRES_NEW to run in separate transaction - prevents failures from rolling back
+     * parent transactions (shift start, load creation, etc.)
      * 
      * @param trigger The event that triggered this optimization
      * @param triggeringEntityId ID of the entity (driver or load) that triggered optimization
      * @return AssignmentPlan with the optimal assignments
      */
+    @Transactional(propagation = Propagation.REQUIRES_NEW, noRollbackFor = Exception.class)
     public AssignmentPlan optimizeAndAssign(OptimizationTrigger trigger, UUID triggeringEntityId) {
         try {
             log.info("Optimizing assignments: trigger={}, entityId={}", trigger, triggeringEntityId);
             
-            // 1. Release expired reservations first
-            loadRepo.releaseExpiredReservations(Instant.now());
+            // 1. Release expired reservations first (requires transaction)
+            try {
+                loadRepo.releaseExpiredReservations(Instant.now());
+            } catch (Exception e) {
+                log.warn("Failed to release expired reservations", e);
+                // Continue with optimization anyway
+            }
             
             // 2. Gather current system state
             List<Driver> eligibleDrivers = driverRepo.findAllEligibleForAssignment();

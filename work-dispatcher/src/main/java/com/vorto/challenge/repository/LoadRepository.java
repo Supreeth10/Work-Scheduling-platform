@@ -37,9 +37,11 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
     int releaseExpiredReservations(Instant now);
 
     /**
-     * Select the closest available AWAITING_DRIVER load (excludeId optional),
-     * order by sphere distance (meters), and lock row to avoid races.
+     * @deprecated Replaced by OptimizationService for global assignment.
+     * This method will be removed in a future version.
+     * Use findAllAssignable() and OptimizationService instead.
      */
+    @Deprecated
     @Query(value = """
     WITH candidate AS (
       SELECT id
@@ -63,6 +65,32 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
 
     @EntityGraph(attributePaths = {"assignedDriver"})
     List<Load> findAllByStatus(Load.Status status);
+    
+    /**
+     * Find all loads that can be assigned or reassigned in optimization.
+     * Includes AWAITING_DRIVER and RESERVED loads.
+     * 
+     * @return List of assignable loads with driver and shift eagerly loaded
+     */
+    @EntityGraph(attributePaths = {"assignedDriver", "assignedShift"})
+    @Query("""
+        SELECT l FROM Load l
+        WHERE l.status IN (com.vorto.challenge.model.Load.Status.AWAITING_DRIVER, 
+                           com.vorto.challenge.model.Load.Status.RESERVED)
+    """)
+    List<Load> findAllAssignable();
+    
+    /**
+     * Find all loads that are IN_PROGRESS (cannot be reassigned).
+     * 
+     * @return List of protected loads with driver eagerly loaded
+     */
+    @EntityGraph(attributePaths = {"assignedDriver"})
+    @Query("""
+        SELECT l FROM Load l
+        WHERE l.status = com.vorto.challenge.model.Load.Status.IN_PROGRESS
+    """)
+    List<Load> findAllInProgress();
 
     @Query(value = """
         SELECT EXISTS (
@@ -74,7 +102,12 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
         """, nativeQuery = true)
     boolean existsActiveByDriverId(@Param("driverId") UUID driverId);
 
-    // 1) Lock and pick the closest candidate ID
+    /**
+     * @deprecated Replaced by OptimizationService for global assignment.
+     * This method will be removed in a future version.
+     * Use findAllAssignable() and OptimizationService instead.
+     */
+    @Deprecated
     @Query(value = """
     WITH candidate AS (
       SELECT id

@@ -36,12 +36,12 @@ The new **Mixed Integer Programming (MIP)** algorithm:
 Open Terminal (Mac/Linux) or Command Prompt (Windows) and run:
 
 ```bash
-cd /path/to/Work-Scheduling-platform
+cd /path/to/Work-Scheduling-platform-MIP
 ```
 
 **Example:**
 ```bash
-cd ~/Downloads/Work-Scheduling-platform
+cd ~/Downloads/Work-Scheduling-platform-MIP
 ```
 
 **Verify you're in the right place:**

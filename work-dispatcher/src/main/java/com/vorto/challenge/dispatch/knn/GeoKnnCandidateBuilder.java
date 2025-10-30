@@ -84,8 +84,12 @@ public class GeoKnnCandidateBuilder implements CandidateBuilder {
             allCandidates.add(new Candidates(firstLoad.getId(), topK, routes));
         }
         
-        log.debug("Built candidates: {} drivers, {} loads, total {} candidate sets",
-                drivers.size(), loads.size(), allCandidates.size());
+        int totalEdges = allCandidates.stream()
+                .mapToInt(c -> c.candidateIds().size())
+                .sum();
+        
+        log.debug("Built {} candidate sets ({} drivers, {} loads) with {} total edges",
+                allCandidates.size(), drivers.size(), loads.size(), totalEdges);
         
         return allCandidates;
     }

@@ -97,8 +97,12 @@ public class AssignmentService2 {
         
         List<Candidates> candidates = candidateBuilder.build(freeDrivers, unassignedLoads, k1, k2);
         
-        log.info("[{}] Built {} candidate sets (k1={}, k2={})",
-                correlationId, candidates.size(), k1, k2);
+        int totalEdges = candidates.stream()
+                .mapToInt(c -> c.candidateIds().size())
+                .sum();
+        
+        log.info("[{}] Built {} candidate sets (k1={}, k2={}) with {} total candidate edges",
+                correlationId, candidates.size(), k1, k2, totalEdges);
         
         // Log summary of candidates
         long driverCandidates = candidates.stream()

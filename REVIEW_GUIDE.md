@@ -132,79 +132,7 @@ MIP Algorithm Will:
 
 **✓ You've just seen the proof!**
 
----
 
-### **Step 3: Run Automated Tests (Shows Detailed Comparison)**
-
-Open a **new terminal window** (keep the first one running), navigate to the project root, and run:
-
-```bash
-cd /path/to/Work-Scheduling-platform
-docker-compose exec backend mvn test -Dtest=GreedyVsMipDemonstrationTest
-```
-
-**Look for this output:**
-
-```
-======================================================================
-     TEST 1: MIP Beats Greedy by 72% (PROVEN SCENARIO)
-======================================================================
-
-=== GREEDY ALGORITHM ===
-Step 1: Assign Driver-2 → Load at (5.30, 0.00) = 21 mi
-Step 2: Assign Driver-1 → Load at (1.00, 0.00) = 69 mi
-Step 3: Assign Driver-3 → Load at (3.00, 0.00) = 483 mi
-Greedy Total Deadhead: 573 mi
-
-=== MIP ALGORITHM ===
-MIP Total Deadhead: 159 mi
-
-  ★★★ MIP is 72.3% BETTER! ★★★
-```
-
-**Tests: 48/48 passing** ✅
-
----
-
-## 📋 Viewing Docker Container Logs
-
-### **View Live Logs (Real-Time)**
-
-In a new terminal:
-
-```bash
-cd /path/to/Work-Scheduling-platform
-docker-compose logs -f backend
-```
-
-Press `Ctrl+C` to stop following logs.
-
-### **View Startup Logs Only**
-
-```bash
-docker-compose logs backend | head -200
-```
-
-### **Search for Specific Keywords**
-
-```bash
-# See optimization events
-docker-compose logs backend | grep "Optimization"
-
-# See MIP solver performance
-docker-compose logs backend | grep "MIP solver"
-
-# See the 72% improvement message
-docker-compose logs backend | grep "BETTER"
-```
-
-### **View Last 50 Lines**
-
-```bash
-docker-compose logs backend | tail -50
-```
-
----
 
 ## 🧪 Test the APIs (Optional - Using Postman)
 

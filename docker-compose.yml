@@ -35,14 +35,16 @@ services:
     ports:
       - "8080:8080"
 
-  frontend:
-    build:
-      context: ./web-ui
-    container_name: work_dispatcher_frontend
-    depends_on:
-      - backend
-    ports:
-      - "3000:80"          # localhost:3000 → Nginx → built Vite app
+  # Frontend commented out - not updated for MIP optimization yet
+  # Uncomment when frontend is ready
+  # frontend:
+  #   build:
+  #     context: ./web-ui
+  #   container_name: work_dispatcher_frontend
+  #   depends_on:
+  #     - backend
+  #   ports:
+  #     - "3000:80"          # localhost:3000 → Nginx → built Vite app
 
 volumes:
   dbdata:

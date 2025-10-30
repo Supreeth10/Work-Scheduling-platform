@@ -63,6 +63,14 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
 
     @EntityGraph(attributePaths = {"assignedDriver"})
     List<Load> findAllByStatus(Load.Status status);
+    
+    /**
+     * Find all loads with status AWAITING_DRIVER.
+     *
+     * @return List of unassigned loads
+     */
+    @Query("SELECT l FROM Load l WHERE l.status = 'AWAITING_DRIVER'")
+    List<Load> findUnassignedLoads();
 
     @Query(value = """
         SELECT EXISTS (

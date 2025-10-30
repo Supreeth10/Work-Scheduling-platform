@@ -1,7 +1,5 @@
 # Assignment Optimization - Review Guide
 
-**For Non-Technical Reviewers**
-
 This guide shows how to see the **72% efficiency improvement** from the new MIP optimization algorithm.
 
 ---
@@ -18,7 +16,7 @@ The new **Mixed Integer Programming (MIP)** algorithm:
 
 ## 📋 Prerequisites
 
-- Docker Desktop installed and running
+- Docker installed and running
 - Postman installed (for API testing)
 - Terminal/Command Prompt access
 - 10 minutes of your time
@@ -29,7 +27,7 @@ The new **Mixed Integer Programming (MIP)** algorithm:
 
 ### **Step 1: Extract the ZIP File**
 
-1. Locate the `Work-Scheduling-platform.zip` file
+1. Locate the `Work-Scheduling-platform-MIP.zip` file
 2. Extract/unzip it to a location of your choice
 3. Note the extracted folder location
 
@@ -348,13 +346,10 @@ A: Check:
 
 ---
 
-## 🎯 Summary for Decision Makers
+## 🎯 Summary
 
 ### What Was Built:
 A mathematically optimal load assignment system using Mixed Integer Programming.
 
-
-
-**Automated Test Results:** `mvn test -Dtest=GreedyVsMipDemonstrationTest`  
 **API Documentation:** http://localhost:8080/swagger-ui (after starting app)
 

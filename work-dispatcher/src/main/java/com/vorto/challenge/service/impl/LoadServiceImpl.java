@@ -4,8 +4,8 @@ import com.vorto.challenge.DTO.LoadSummaryDto;
 import com.vorto.challenge.DTO.CreateLoadRequest;
 import com.vorto.challenge.common.LoadMappers;
 import com.vorto.challenge.model.Load;
+import com.vorto.challenge.optimization.OptimizationTrigger;
 import com.vorto.challenge.repository.LoadRepository;
-import com.vorto.challenge.service.AssignmentService;
 import com.vorto.challenge.service.LoadService;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,12 +22,12 @@ import static com.vorto.challenge.common.LoadMappers.toLoadSummaryDto;
 
 @Service
 public class LoadServiceImpl implements LoadService {
-
-    private final LoadRepository loadRepository;
-    private final AssignmentService assignmentService;
     private static final Logger log = LoggerFactory.getLogger(LoadServiceImpl.class);
 
-    public LoadServiceImpl(LoadRepository loadRepository,AssignmentService assignmentService) {
+    private final LoadRepository loadRepository;
+    private final AssignmentServiceImpl assignmentService;
+
+    public LoadServiceImpl(LoadRepository loadRepository, AssignmentServiceImpl assignmentService) {
         this.loadRepository = loadRepository;
         this.assignmentService = assignmentService;
     }
@@ -67,11 +67,12 @@ public class LoadServiceImpl implements LoadService {
         // Persist first
         Load saved = loadRepository.save(load);
 
-        // ---- defensive auto-assign: doesn't fail the request if this throws ----
+        // Trigger optimization to assign this new load
         try {
-            assignmentService.tryAssignNewlyCreatedLoad(saved.getId());
+            log.info("Load {} created, triggering optimization", saved.getId());
+            assignmentService.optimizeAndAssign(OptimizationTrigger.LOAD_CREATED, saved.getId());
         } catch (Exception e) {
-            log.warn("Auto-assign after create failed for load {}", saved.getId(), e);
+            log.warn("Optimization failed after load create for load {}", saved.getId(), e);
             // swallow so the client still gets 201 + created load
         }
 

@@ -6,12 +6,15 @@ import com.vorto.challenge.DTO.RejectOutcome;
 import com.vorto.challenge.model.Driver;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.model.Shift;
+import com.vorto.challenge.optimization.*;
 import com.vorto.challenge.repository.DriverRepository;
 import com.vorto.challenge.repository.LoadRepository;
 import com.vorto.challenge.repository.ShiftRepository;
 import com.vorto.challenge.service.AssignmentService;
 import jakarta.persistence.EntityNotFoundException;
 import org.hibernate.exception.ConstraintViolationException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
@@ -20,23 +23,151 @@ import org.springframework.web.server.ResponseStatusException;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
-import java.util.List;
-import java.util.UUID;
+import java.util.*;
 
 import static com.vorto.challenge.common.LoadMappers.toAssignmentResponse;
 
 @Service
 public class AssignmentServiceImpl implements AssignmentService {
+    private static final Logger log = LoggerFactory.getLogger(AssignmentServiceImpl.class);
     private static final int RESERVATION_SECONDS = 120;
 
     private final DriverRepository driverRepo;
     private final ShiftRepository shiftRepo;
     private final LoadRepository loadRepo;
+    private final OptimizationService optimizationService;
 
-    public AssignmentServiceImpl(DriverRepository driverRepo, ShiftRepository shiftRepo, LoadRepository loadRepo) {
+    public AssignmentServiceImpl(
+            DriverRepository driverRepo, 
+            ShiftRepository shiftRepo, 
+            LoadRepository loadRepo,
+            OptimizationService optimizationService) {
         this.driverRepo = driverRepo;
         this.shiftRepo = shiftRepo;
         this.loadRepo = loadRepo;
+        this.optimizationService = optimizationService;
+    }
+    
+    /**
+     * NEW UNIFIED ENTRY POINT: Optimize and apply load assignments.
+     * This is the single algorithm that handles all assignment logic.
+     * Replaces duplicated logic in getOrReserveLoad, tryAssignNewlyCreatedLoad, etc.
+     * 
+     * @param trigger The event that triggered this optimization
+     * @param triggeringEntityId ID of the entity (driver or load) that triggered optimization
+     * @return AssignmentPlan with the optimal assignments
+     */
+    @Transactional
+    public AssignmentPlan optimizeAndAssign(OptimizationTrigger trigger, UUID triggeringEntityId) {
+        log.info("Optimizing assignments: trigger={}, entityId={}", trigger, triggeringEntityId);
+        
+        // 1. Release expired reservations first
+        loadRepo.releaseExpiredReservations(Instant.now());
+        
+        // 2. Gather current system state
+        List<Driver> eligibleDrivers = driverRepo.findAllEligibleForAssignment();
+        List<Load> assignableLoads = loadRepo.findAllAssignable();
+        List<Load> protectedLoads = loadRepo.findAllInProgress();
+        
+        log.debug("System state: {} eligible drivers, {} assignable loads, {} protected loads",
+                eligibleDrivers.size(), assignableLoads.size(), protectedLoads.size());
+        
+        // 3. Build optimization context
+        OptimizationContext context = new OptimizationContext(
+                eligibleDrivers,
+                assignableLoads,
+                protectedLoads,
+                trigger,
+                triggeringEntityId
+        );
+        
+        // 4. Run optimization
+        AssignmentPlan plan = optimizationService.optimize(context);
+        
+        // 5. Apply the plan to the database
+        applyAssignmentPlan(plan, assignableLoads);
+        
+        log.info("Optimization complete: {} assignments made, {:.2f} mi total deadhead",
+                plan.getAssignedDriverCount(), plan.getTotalDeadheadMiles());
+        
+        return plan;
+    }
+    
+    /**
+     * Apply the optimization plan to the database by creating/updating/releasing reservations.
+     * 
+     * Note on chaining: When MIP suggests a chain (D1 → L1 → L2), we only reserve L1.
+     * L2 will be assigned when D1 completes L1 dropoff via re-optimization.
+     * This is a "soft preference" approach - allows flexibility if better options appear.
+     */
+    private void applyAssignmentPlan(AssignmentPlan plan, List<Load> assignableLoads) {
+        // Build map of current assignments for comparison
+        Map<UUID, UUID> currentAssignments = new HashMap<>();
+        for (Load load : assignableLoads) {
+            if (load.getStatus() == Load.Status.RESERVED && load.getAssignedDriver() != null) {
+                currentAssignments.put(load.getId(), load.getAssignedDriver().getId());
+            }
+        }
+        
+        Set<UUID> assignedLoadIds = plan.getAssignedLoadIds();
+        
+        // Release loads that were RESERVED but not in new plan (aggressive rebalancing)
+        for (Load load : assignableLoads) {
+            if (load.getStatus() == Load.Status.RESERVED && !assignedLoadIds.contains(load.getId())) {
+                log.debug("Releasing load {} (was reserved to {}) for rebalancing", 
+                        load.getId(), load.getAssignedDriver().getId());
+                load.setStatus(Load.Status.AWAITING_DRIVER);
+                load.setAssignedDriver(null);
+                load.setAssignedShift(null);
+                load.setReservationExpiresAt(null);
+                loadRepo.save(load);
+            }
+        }
+        
+        // Apply new assignments
+        for (Map.Entry<UUID, LoadSequence> entry : plan.getDriverAssignments().entrySet()) {
+            UUID driverId = entry.getKey();
+            LoadSequence sequence = entry.getValue();
+            
+            if (sequence.isEmpty()) continue; // Skip idle drivers
+            
+            Driver driver = driverRepo.findById(driverId)
+                    .orElseThrow(() -> new EntityNotFoundException("Driver not found: " + driverId));
+            
+            Shift activeShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driverId)
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT, 
+                            "Driver has no active shift: " + driverId));
+            
+            // For chained sequences: only reserve FIRST load
+            // Second load will be assigned after first dropoff via re-optimization
+            UUID firstLoadId = sequence.getLoadIds().get(0);
+            
+            // Check if already assigned correctly (skip unnecessary updates)
+            UUID currentDriverId = currentAssignments.get(firstLoadId);
+            if (driverId.equals(currentDriverId)) {
+                log.debug("Load {} already assigned to driver {}, no change", firstLoadId, driverId);
+                continue;
+            }
+            
+            Load load = loadRepo.findById(firstLoadId)
+                    .orElseThrow(() -> new EntityNotFoundException("Load not found: " + firstLoadId));
+            
+            // Reserve the load
+            log.debug("Assigning load {} to driver {} (deadhead: {:.2f} mi)", 
+                    firstLoadId, driverId, sequence.getDeadheadMiles());
+            
+            load.setStatus(Load.Status.RESERVED);
+            load.setAssignedDriver(driver);
+            load.setAssignedShift(activeShift);
+            load.setReservationExpiresAt(Instant.now().plus(RESERVATION_SECONDS, ChronoUnit.SECONDS));
+            loadRepo.save(load);
+            
+            // Note: If chained (sequence.size() == 2), second load handled after first dropoff
+            if (sequence.isChained()) {
+                log.debug("Chain suggested: {} loads for driver {} (second load assigned after first completes)",
+                        sequence.size(), driverId);
+            }
+        }
     }
 
     /**
@@ -69,9 +200,24 @@ public class AssignmentServiceImpl implements AssignmentService {
         if (driver.getCurrentLocation() == null) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Driver location unknown");
         }
-        // Reserve the closest available load from driver's current location
-        return reserveClosestFrom(driver, activeShift, null);
-
+        
+        // Trigger optimization to assign a load to this driver
+        try {
+            AssignmentPlan plan = optimizeAndAssign(OptimizationTrigger.MANUAL, driverId);
+            LoadSequence driverSeq = plan.getAssignmentForDriver(driverId);
+            if (driverSeq != null && !driverSeq.isEmpty()) {
+                UUID assignedLoadId = driverSeq.getLoadIds().get(0);
+                Load assignedLoad = loadRepo.findById(assignedLoadId).orElse(null);
+                if (assignedLoad != null) {
+                    return toAssignmentResponse(assignedLoad);
+                }
+            }
+        } catch (Exception e) {
+            log.error("Optimization failed for getOrReserveLoad", e);
+        }
+        
+        // No load available
+        return null;
     }
 
 
@@ -92,18 +238,31 @@ public class AssignmentServiceImpl implements AssignmentService {
         Load load = loadRepo.findById(loadId)
                 .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
 
-        /* Idempotency: if load already completed, return completed load + driver's next assignment (if any)
-            or try to reserve one now (based on driver's current location)*/
+        /* Idempotency: if load already completed, return completed load + driver's next assignment (if any) */
         if (load.getStatus() == Load.Status.COMPLETED) {
             Load openLoad = loadRepo.findOpenByDriverId(
                     driverId, List.of(Load.Status.RESERVED, Load.Status.IN_PROGRESS)
             ).orElse(null);
 
-            LoadAssignmentResponse nextLoadAssignment =
-                    (openLoad != null) ? toAssignmentResponse(openLoad)
-                            : (driver.getCurrentLocation() != null
-                            ? reserveClosestFrom(driver, activeShift, load.getId())
-                            : null);
+            LoadAssignmentResponse nextLoadAssignment = null;
+            if (openLoad != null) {
+                nextLoadAssignment = toAssignmentResponse(openLoad);
+            } else if (driver.getCurrentLocation() != null) {
+                // Try optimization to get next assignment
+                try {
+                    AssignmentPlan plan = optimizeAndAssign(OptimizationTrigger.MANUAL, driverId);
+                    LoadSequence driverSeq = plan.getAssignmentForDriver(driverId);
+                    if (driverSeq != null && !driverSeq.isEmpty()) {
+                        UUID nextLoadId = driverSeq.getLoadIds().get(0);
+                        Load nextLoad = loadRepo.findById(nextLoadId).orElse(null);
+                        if (nextLoad != null) {
+                            nextLoadAssignment = toAssignmentResponse(nextLoad);
+                        }
+                    }
+                } catch (Exception e) {
+                    log.error("Optimization failed in idempotency check", e);
+                }
+            }
 
             return new CompleteStopResult(
                     toAssignmentResponse(load),
@@ -145,7 +304,7 @@ public class AssignmentServiceImpl implements AssignmentService {
             load.setStatus(Load.Status.COMPLETED);
             load.setReservationExpiresAt(null);
 
-            // snap driver to dropoff; clear assignment, so they’re idle but on-shift
+            // snap driver to dropoff; clear assignment, so they're idle but on-shift
             driver.setCurrentLocation(load.getDropoff());
             load.setAssignedDriver(null);
             load.setAssignedShift(null);
@@ -153,8 +312,24 @@ public class AssignmentServiceImpl implements AssignmentService {
             driverRepo.save(driver);
             loadRepo.save(load);
 
-            // Immediately try to reserve the next closest based on new location
-            LoadAssignmentResponse nextLoadAssignment = reserveClosestFrom(driver, activeShift, load.getId());
+            // Trigger optimization to assign next load
+            // Note: If this was part of a chain, MIP will likely assign the second load
+            LoadAssignmentResponse nextLoadAssignment = null;
+            try {
+                log.info("Driver {} completed dropoff for load {}, triggering optimization", driverId, loadId);
+                AssignmentPlan plan = optimizeAndAssign(OptimizationTrigger.DROPOFF_COMPLETE, driverId);
+                
+                LoadSequence driverSeq = plan.getAssignmentForDriver(driverId);
+                if (driverSeq != null && !driverSeq.isEmpty()) {
+                    UUID nextLoadId = driverSeq.getLoadIds().get(0);
+                    Load nextLoad = loadRepo.findById(nextLoadId).orElse(null);
+                    if (nextLoad != null) {
+                        nextLoadAssignment = toAssignmentResponse(nextLoad);
+                    }
+                }
+            } catch (Exception e) {
+                log.error("Optimization failed after dropoff complete", e);
+            }
 
             return new CompleteStopResult(
                     toAssignmentResponse(load),  // completed load
@@ -227,51 +402,25 @@ public class AssignmentServiceImpl implements AssignmentService {
     }
 
     /**
-     * After a load is created: tries to immediately reserve it for the closest eligible
-     * on-shift driver with no open load. No-op if none found or state changed concurrently.
+     * @deprecated Replaced by optimizeAndAssign() which uses MIP optimization.
+     * Kept for backward compatibility, delegates to new system.
      */
+    @Deprecated
     @Override
     @Transactional
     public void tryAssignNewlyCreatedLoad(UUID loadId) {
-        // Load must exist and still be unassigned & awaiting driver
-        Load load = loadRepo.findById(loadId)
-                .orElseThrow(() -> new EntityNotFoundException("Load not found: " + loadId));
-
-        if (load.getStatus() != Load.Status.AWAITING_DRIVER || load.getPickup() == null) {
-            return; // nothing to do (might have been reserved by some other flow)
-        }
-
-        // Clean pool first (consistent with other flows)
-        loadRepo.releaseExpiredReservations(Instant.now());
-
-        // Find the closest on-shift driver with no open (RESERVED/IN_PROGRESS) load
-        double lat = load.getPickup().getY();
-        double lng = load.getPickup().getX();
-
-        Driver driver = driverRepo.findClosestAvailableDriver(lat, lng).orElse(null);
-        if (driver == null) return;
-
-        // Need the active shift to attach the reservation
-        Shift activeShift = shiftRepo.findByDriverIdAndEndTimeIsNull(driver.getId())
-                .orElse(null);
-        if (activeShift == null) return; // race: driver went off-shift
-
-        // Reserve this specific load for the chosen driver
-        try {
-            int updated = loadRepo.reserveById(loadId, driver.getId(), activeShift.getId(), RESERVATION_SECONDS);
-            // If updated == 0, someone else reserved or state changed; no-op.
-        } catch (DataIntegrityViolationException ignored) {
-            // Another request gave this driver an open load concurrently—ignore.
-        }
+        log.warn("tryAssignNewlyCreatedLoad() is deprecated. Delegating to optimizeAndAssign().");
+        optimizeAndAssign(OptimizationTrigger.LOAD_CREATED, loadId);
     }
 
 
     // ===================== Helpers =====================
     /**
-     * Internal: reserves the nearest AWAITING_DRIVER load for the given on-shift driver,
-     * excluding a specific load ID (e.g., the one just completed). Returns the assignment
-     * DTO if reserved, or null if none available.
+     * @deprecated Replaced by optimizeAndAssign() which uses MIP optimization.
+     * No longer used - all assignment logic now goes through unified entry point.
+     * Kept temporarily for reference, will be removed in cleanup phase.
      */
+    @Deprecated
     private LoadAssignmentResponse reserveClosestFrom(Driver driver, Shift activeShift, UUID excludeId) {
         loadRepo.releaseExpiredReservations(Instant.now());
 

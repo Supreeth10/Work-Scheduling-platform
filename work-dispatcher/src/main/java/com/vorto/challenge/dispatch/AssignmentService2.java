@@ -36,5 +36,23 @@ public class AssignmentService2 {
 
         // TODO: Implement actual min-cost flow solver invocation
     }
+
+    /**
+     * Runs a single optimization pass with correlation tracking.
+     *
+     * @param correlationId The correlation ID for tracing this optimization run
+     */
+    public void runOnce(String correlationId) {
+        long driverCount = driverRepository.count();
+        long loadCount = loadRepository.count();
+        long shiftCount = shiftRepository.count();
+
+        log.info("[{}] Running optimization pass. Drivers: {}, Loads: {}, Shifts: {}",
+                correlationId, driverCount, loadCount, shiftCount);
+
+        // TODO: Implement actual min-cost flow solver invocation
+        
+        log.info("[{}] Optimization pass completed", correlationId);
+    }
 }
 

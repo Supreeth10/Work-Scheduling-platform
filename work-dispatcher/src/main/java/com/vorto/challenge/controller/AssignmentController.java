@@ -14,6 +14,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.MDC;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
@@ -466,7 +467,7 @@ public class AssignmentController {
                     content = @Content(mediaType = "application/json",
                             schema = @Schema(implementation = ErrorResponse.class)))
     })
-    @PostMapping("/api/assignments/run2")
+    @PostMapping("/run2")
     public ResponseEntity<?> triggerOptimization() {
         if (!optimizerProps.isEnabled()) {
             throw new ResponseStatusException(
@@ -475,7 +476,13 @@ public class AssignmentController {
             );
         }
         
-        coordinator.requestRun("MANUAL");
+        // Get correlation ID from MDC (set by CorrelationIdFilter)
+        String correlationId = MDC.get("correlationId");
+        if (correlationId == null) {
+            correlationId = UUID.randomUUID().toString();
+        }
+        
+        coordinator.requestRun("MANUAL", correlationId);
         return ResponseEntity.accepted().build();
     }
 }

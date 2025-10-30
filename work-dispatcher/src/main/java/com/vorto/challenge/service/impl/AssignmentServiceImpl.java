@@ -31,7 +31,7 @@ import static com.vorto.challenge.common.LoadMappers.toAssignmentResponse;
 @Service
 public class AssignmentServiceImpl implements AssignmentService {
     private static final Logger log = LoggerFactory.getLogger(AssignmentServiceImpl.class);
-    private static final int RESERVATION_SECONDS = 120;
+    private static final int RESERVATION_SECONDS = 300; // 5 minutes
 
     private final DriverRepository driverRepo;
     private final ShiftRepository shiftRepo;

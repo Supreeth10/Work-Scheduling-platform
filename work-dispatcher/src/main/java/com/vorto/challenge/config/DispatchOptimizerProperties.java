@@ -1,9 +1,7 @@
 package com.vorto.challenge.config;
 
 import org.springframework.boot.context.properties.ConfigurationProperties;
-import org.springframework.stereotype.Component;
 
-@Component
 @ConfigurationProperties(prefix = "dispatch.optimizer")
 public class DispatchOptimizerProperties {
 

@@ -75,8 +75,7 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
     @EntityGraph(attributePaths = {"assignedDriver", "assignedShift"})
     @Query("""
         SELECT l FROM Load l
-        WHERE l.status IN (com.vorto.challenge.model.Load.Status.AWAITING_DRIVER, 
-                           com.vorto.challenge.model.Load.Status.RESERVED)
+        WHERE l.status = 'AWAITING_DRIVER' OR l.status = 'RESERVED'
     """)
     List<Load> findAllAssignable();
     
@@ -88,7 +87,7 @@ public interface LoadRepository extends JpaRepository<Load, UUID> {
     @EntityGraph(attributePaths = {"assignedDriver"})
     @Query("""
         SELECT l FROM Load l
-        WHERE l.status = com.vorto.challenge.model.Load.Status.IN_PROGRESS
+        WHERE l.status = 'IN_PROGRESS'
     """)
     List<Load> findAllInProgress();
 

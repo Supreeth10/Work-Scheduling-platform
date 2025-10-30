@@ -16,6 +16,7 @@ import org.hibernate.exception.ConstraintViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -53,44 +54,52 @@ public class AssignmentServiceImpl implements AssignmentService {
      * This is the single algorithm that handles all assignment logic.
      * Replaces duplicated logic in getOrReserveLoad, tryAssignNewlyCreatedLoad, etc.
      * 
+     * Note: Does NOT use @Transactional to avoid rollback issues when called from other transactions.
+     * Transaction handling is done within applyAssignmentPlan() for the database updates only.
+     * 
      * @param trigger The event that triggered this optimization
      * @param triggeringEntityId ID of the entity (driver or load) that triggered optimization
      * @return AssignmentPlan with the optimal assignments
      */
-    @Transactional
     public AssignmentPlan optimizeAndAssign(OptimizationTrigger trigger, UUID triggeringEntityId) {
-        log.info("Optimizing assignments: trigger={}, entityId={}", trigger, triggeringEntityId);
-        
-        // 1. Release expired reservations first
-        loadRepo.releaseExpiredReservations(Instant.now());
-        
-        // 2. Gather current system state
-        List<Driver> eligibleDrivers = driverRepo.findAllEligibleForAssignment();
-        List<Load> assignableLoads = loadRepo.findAllAssignable();
-        List<Load> protectedLoads = loadRepo.findAllInProgress();
-        
-        log.debug("System state: {} eligible drivers, {} assignable loads, {} protected loads",
-                eligibleDrivers.size(), assignableLoads.size(), protectedLoads.size());
-        
-        // 3. Build optimization context
-        OptimizationContext context = new OptimizationContext(
-                eligibleDrivers,
-                assignableLoads,
-                protectedLoads,
-                trigger,
-                triggeringEntityId
-        );
-        
-        // 4. Run optimization
-        AssignmentPlan plan = optimizationService.optimize(context);
-        
-        // 5. Apply the plan to the database
-        applyAssignmentPlan(plan, assignableLoads);
-        
-        log.info("Optimization complete: {} assignments made, {:.2f} mi total deadhead",
-                plan.getAssignedDriverCount(), plan.getTotalDeadheadMiles());
-        
-        return plan;
+        try {
+            log.info("Optimizing assignments: trigger={}, entityId={}", trigger, triggeringEntityId);
+            
+            // 1. Release expired reservations first
+            loadRepo.releaseExpiredReservations(Instant.now());
+            
+            // 2. Gather current system state
+            List<Driver> eligibleDrivers = driverRepo.findAllEligibleForAssignment();
+            List<Load> assignableLoads = loadRepo.findAllAssignable();
+            List<Load> protectedLoads = loadRepo.findAllInProgress();
+            
+            log.debug("System state: {} eligible drivers, {} assignable loads, {} protected loads",
+                    eligibleDrivers.size(), assignableLoads.size(), protectedLoads.size());
+            
+            // 3. Build optimization context
+            OptimizationContext context = new OptimizationContext(
+                    eligibleDrivers,
+                    assignableLoads,
+                    protectedLoads,
+                    trigger,
+                    triggeringEntityId
+            );
+            
+            // 4. Run optimization
+            AssignmentPlan plan = optimizationService.optimize(context);
+            
+            // 5. Apply the plan to the database
+            applyAssignmentPlan(plan, assignableLoads);
+            
+            log.info("Optimization complete: {} assignments made, {:.2f} mi total deadhead",
+                    plan.getAssignedDriverCount(), plan.getTotalDeadheadMiles());
+            
+            return plan;
+        } catch (Exception e) {
+            log.error("Optimization failed: trigger={}, entityId={}", trigger, triggeringEntityId, e);
+            // Return empty plan on failure - don't propagate exception
+            return AssignmentPlan.builder().build();
+        }
     }
     
     /**

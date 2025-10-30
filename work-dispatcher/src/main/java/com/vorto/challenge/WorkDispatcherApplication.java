@@ -1,10 +1,12 @@
 package com.vorto.challenge;
 
+import com.vorto.challenge.config.DispatchOptimizerProperties;
 import com.vorto.challenge.model.Load;
 import com.vorto.challenge.repository.LoadRepository;
 import org.springframework.boot.CommandLineRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 
 import java.util.ArrayList;
@@ -13,6 +15,7 @@ import java.util.List;
 import static com.vorto.challenge.common.JtsGeo.point;
 
 @SpringBootApplication
+@EnableConfigurationProperties(DispatchOptimizerProperties.class)
 public class WorkDispatcherApplication {
 
     public static void main(String[] args) {

@@ -3,6 +3,8 @@ package com.vorto.challenge.controller;
 import com.vorto.challenge.DTO.CompleteStopResult;
 import com.vorto.challenge.DTO.LoadAssignmentResponse;
 import com.vorto.challenge.DTO.RejectOutcome;
+import com.vorto.challenge.config.DispatchOptimizerProperties;
+import com.vorto.challenge.dispatch.AssignmentCoordinator;
 import com.vorto.challenge.exception.ErrorResponse;
 import com.vorto.challenge.service.AssignmentService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,9 +14,11 @@ import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.server.ResponseStatusException;
 
 
 
@@ -26,9 +30,15 @@ import java.util.UUID;
 @Tag(name = "Assignments", description = "Driver assignment lifecycle: view, complete next stop, reject load")
 public class AssignmentController {
     private final AssignmentService assignmentService;
+    private final AssignmentCoordinator coordinator;
+    private final DispatchOptimizerProperties optimizerProps;
 
-    public AssignmentController(AssignmentService assignmentService) {
+    public AssignmentController(AssignmentService assignmentService,
+                                AssignmentCoordinator coordinator,
+                                DispatchOptimizerProperties optimizerProps) {
         this.assignmentService = assignmentService;
+        this.coordinator = coordinator;
+        this.optimizerProps = optimizerProps;
     }
 
 
@@ -440,5 +450,32 @@ public class AssignmentController {
     public ResponseEntity<?> reject(@PathVariable UUID driverId, @PathVariable UUID loadId) {
             RejectOutcome outcome = assignmentService.rejectReservedLoadAndEndShift(driverId, loadId);
             return ResponseEntity.ok(outcome);
+    }
+
+    /**
+     * POST /api/assignments/run2
+     * Internal actuator-like endpoint to trigger dispatch optimization.
+     */
+    @Operation(
+            summary = "Trigger dispatch optimization run",
+            description = "Internal endpoint to manually trigger the dispatch optimizer. Only available when optimizer is enabled."
+    )
+    @ApiResponses({
+            @ApiResponse(responseCode = "202", description = "Optimization run requested and accepted"),
+            @ApiResponse(responseCode = "503", description = "Dispatch optimizer is not enabled",
+                    content = @Content(mediaType = "application/json",
+                            schema = @Schema(implementation = ErrorResponse.class)))
+    })
+    @PostMapping("/api/assignments/run2")
+    public ResponseEntity<?> triggerOptimization() {
+        if (!optimizerProps.isEnabled()) {
+            throw new ResponseStatusException(
+                    HttpStatus.SERVICE_UNAVAILABLE,
+                    "Dispatch optimizer is not enabled"
+            );
+        }
+        
+        coordinator.requestRun("MANUAL");
+        return ResponseEntity.accepted().build();
     }
 }
